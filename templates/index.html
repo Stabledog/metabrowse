@@ -42,6 +42,9 @@
         {% else %}
           <a href="{{ link.url }}" target="{{ link.target }}">{{ link.text }}</a>
         {% endif %}
+        {% if link.comment %}
+        <div class="link-comment">ℹ {{ link.comment }}</div>
+        {% endif %}
       </li>
       {% endfor %}
     </ul>
@@ -51,7 +54,12 @@
     <!-- Groups -->
     {% for group in groups %}
     <details class="group">
-      <summary>{{ group.name }}</summary>
+      <summary>
+        {{ group.name }}
+        {% if group.comment %}
+        <div class="group-comment">ℹ {{ group.comment }}</div>
+        {% endif %}
+      </summary>
       <ul class="group-links">
         {% for link in group.links %}
         <li>
@@ -59,6 +67,9 @@
             {{ link.raw_html|safe }}
           {% else %}
             <a href="{{ link.url }}" target="{{ link.target }}">{{ link.text }}</a>
+          {% endif %}
+          {% if link.comment %}
+          <div class="link-comment">ℹ {{ link.comment }}</div>
           {% endif %}
         </li>
         {% endfor %}

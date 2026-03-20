@@ -20,6 +20,9 @@ Metabrowse is a markdown-to-HTML static site generator designed for teaching mat
 7. **Edit links** - "Edit" button on every page links to source README.md in BBGitHub
    - Auto-detects repository from git remote
    - Opens in new tab to preserve navigation state
+8. **Inline comments** - add `# comment text` to any link or group for context
+   - Displayed as small gray italic text below the link/group
+   - Plain text only, no markup interpretation
 
 ## Build Commands
 
@@ -50,11 +53,13 @@ The codebase implements a three-stage pipeline:
   - Raw HTML `<a>` tags (passed through unchanged)
   - Title + URL: `Title text https://example.com`
 - Detects groups: lines starting with `- ` but containing no URL
+- Extracts comments: everything after `#` on the same line (via `_extract_comment()`)
+  - Handles URL fragments correctly by looking for `#` preceded by whitespace
 - Returns `ParsedDocument` containing ungrouped links and groups
 
 Key classes:
-- `Link`: Represents a single link with metadata (url, text, target, indent_level)
-- `Group`: Represents a collapsible group with name and child links
+- `Link`: Represents a single link with metadata (url, text, target, indent_level, comment)
+- `Group`: Represents a collapsible group with name, child links, and optional comment
 - `ParsedDocument`: Contains ungrouped_links and groups
 
 ### 2. Transformer (`transformer.py`)
@@ -109,10 +114,10 @@ metabrowse/
 
 **Groups** (collapsible sections):
 ```markdown
-- Group Name
-  - https://link1.com
+- Group Name # Optional comment about this group
+  - https://link1.com # Optional comment about this link
   - Link title https://link2.com
-  - [Link text](https://link3.com)
+  - [Link text](https://link3.com) # Comments work with all link formats
 ```
 
 **Link formats supported**:
@@ -121,6 +126,12 @@ metabrowse/
 - Markdown: `- [Link text](https://example.com)`
 - With explicit target: `- [Link text](https://example.com){target="_custom"}`
 - Raw HTML: `- <a href="https://example.com">Text</a>`
+
+**Comments**: Add `# comment text` at the end of any link or group line:
+- Comments are displayed as small, gray, italic text below the link/group
+- Plain text only - no markup or special formatting
+- Comments are optional - links/groups without comments work as before
+- Example: `- [Khan Academy](https://khanacademy.org) # Great for learning math`
 
 **Group detection rule**: A line starting with `- ` that contains no URL is treated as a group header. Links indented with more spaces than the group header become children of that group.
 

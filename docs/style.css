@@ -146,6 +146,14 @@ h1.breadcrumbs {
   text-decoration: underline;
 }
 
+.link-comment {
+  font-size: 0.85em;
+  color: #7f8c8d;
+  font-style: italic;
+  margin-top: 4px;
+  margin-left: 20px;
+}
+
 /* Groups */
 .group {
   margin-bottom: 20px;
@@ -171,6 +179,18 @@ h1.breadcrumbs {
 .group[open] summary {
   background-color: #3498db;
   color: white;
+}
+
+.group-comment {
+  font-size: 0.85em;
+  color: #7f8c8d;
+  font-style: italic;
+  font-weight: normal;
+  margin-top: 4px;
+}
+
+.group[open] summary .group-comment {
+  color: #ecf0f1;
 }
 
 .group-links {

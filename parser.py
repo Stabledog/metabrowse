@@ -13,6 +13,7 @@ class Link:
     target: Optional[str] = None  # Explicit target from {target="..."}
     raw_html: Optional[str] = None  # If this is a pass-through HTML link
     indent_level: int = 0
+    comment: Optional[str] = None  # Comment after # on the same line
 
 
 @dataclass
@@ -21,6 +22,7 @@ class Group:
     name: str
     links: List[Link]
     indent_level: int
+    comment: Optional[str] = None  # Comment after # on the same line
 
 
 @dataclass
@@ -38,6 +40,42 @@ class MarkdownParser:
     PATTERN_MD_LINK_WITH_TARGET = re.compile(r'\[([^\]]+)\]\(([^)]+)\)\{target="([^"]+)"\}')
     PATTERN_MD_LINK = re.compile(r'\[([^\]]+)\]\(([^)]+)\)')
     PATTERN_BARE_URL = re.compile(r'https?://[^\s]+')
+
+    @staticmethod
+    def _extract_comment(text: str) -> tuple[str, Optional[str]]:
+        """
+        Extract comment from a line (everything after #).
+
+        Args:
+            text: The text to extract comment from
+
+        Returns:
+            Tuple of (text_without_comment, comment_or_none)
+        """
+        # Find the last # in the line (to handle URLs with fragments)
+        # But be careful not to split on # inside URLs
+        parts = text.split('#')
+
+        # If no # or only one part, no comment
+        if len(parts) <= 1:
+            return (text.strip(), None)
+
+        # Try to find a # that's not part of a URL
+        # Look for # that comes after a space
+        comment_pos = -1
+        for i in range(len(text)):
+            if text[i] == '#' and (i == 0 or text[i-1].isspace()):
+                comment_pos = i
+                break
+
+        if comment_pos == -1:
+            # No valid comment marker found
+            return (text.strip(), None)
+
+        content = text[:comment_pos].strip()
+        comment = text[comment_pos+1:].strip()
+
+        return (content, comment if comment else None)
 
     def parse_file(self, filepath: str) -> ParsedDocument:
         """Parse a markdown file and return structured data."""
@@ -77,9 +115,10 @@ class MarkdownParser:
                 if current_group:
                     groups.append(current_group)
 
-                # Start new group
-                group_name = stripped[2:].strip()  # Remove "- " prefix
-                current_group = Group(name=group_name, links=[], indent_level=indent)
+                # Start new group - extract name and comment
+                group_text = stripped[2:].strip()  # Remove "- " prefix
+                group_name, group_comment = self._extract_comment(group_text)
+                current_group = Group(name=group_name, links=[], indent_level=indent, comment=group_comment)
                 current_group_indent = indent
 
         # Don't forget the last group
@@ -96,13 +135,17 @@ class MarkdownParser:
         if stripped.startswith('- '):
             stripped = stripped[2:].strip()
 
+        # Extract comment from the line (before parsing link formats)
+        stripped, comment = self._extract_comment(stripped)
+
         # 1. Check for HTML pass-through
-        html_match = self.PATTERN_HTML_LINK.search(line)
+        html_match = self.PATTERN_HTML_LINK.search(stripped)
         if html_match:
             return Link(
                 url=html_match.group(1),
                 raw_html=html_match.group(0),
-                indent_level=indent
+                indent_level=indent,
+                comment=comment
             )
 
         # 2. Check for markdown link with explicit target
@@ -112,7 +155,8 @@ class MarkdownParser:
                 url=md_target_match.group(2),
                 text=md_target_match.group(1),
                 target=md_target_match.group(3),
-                indent_level=indent
+                indent_level=indent,
+                comment=comment
             )
 
         # 3. Check for regular markdown link
@@ -121,7 +165,8 @@ class MarkdownParser:
             return Link(
                 url=md_match.group(2),
                 text=md_match.group(1),
-                indent_level=indent
+                indent_level=indent,
+                comment=comment
             )
 
         # 4. Check for bare URL or "Title text URL" format
@@ -135,7 +180,8 @@ class MarkdownParser:
             return Link(
                 url=url,
                 text=title,
-                indent_level=indent
+                indent_level=indent,
+                comment=comment
             )
 
         return None

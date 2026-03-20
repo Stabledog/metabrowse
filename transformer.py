@@ -13,6 +13,7 @@ class HTMLLink:
     text: str
     target: str
     raw_html: Optional[str] = None
+    comment: Optional[str] = None
 
 
 @dataclass
@@ -20,6 +21,7 @@ class HTMLGroup:
     """Group prepared for HTML rendering."""
     name: str
     links: List[HTMLLink]
+    comment: Optional[str] = None
 
 
 @dataclass
@@ -73,7 +75,8 @@ class Transformer:
             url=link.url,
             text=text,
             target=target,
-            raw_html=link.raw_html
+            raw_html=link.raw_html,
+            comment=link.comment
         )
 
     def _transform_group(self, group: Group) -> HTMLGroup:
@@ -82,5 +85,6 @@ class Transformer:
 
         return HTMLGroup(
             name=group.name,
-            links=html_links
+            links=html_links,
+            comment=group.comment
         )
