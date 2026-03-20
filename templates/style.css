@@ -1,0 +1,134 @@
+/* Reset and base styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  line-height: 1.6;
+  color: #333;
+  background-color: #f5f5f5;
+  padding: 20px;
+}
+
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  background-color: white;
+  padding: 30px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+h1 {
+  color: #2c3e50;
+  margin-bottom: 30px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #3498db;
+}
+
+/* Links */
+.links {
+  list-style: none;
+  margin-bottom: 30px;
+}
+
+.links li {
+  margin-bottom: 12px;
+  padding-left: 20px;
+  position: relative;
+}
+
+.links li::before {
+  content: "→";
+  position: absolute;
+  left: 0;
+  color: #3498db;
+  font-weight: bold;
+}
+
+.links a {
+  color: #3498db;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.links a:hover {
+  color: #2980b9;
+  text-decoration: underline;
+}
+
+/* Groups */
+.group {
+  margin-bottom: 20px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.group summary {
+  background-color: #f8f9fa;
+  padding: 15px 20px;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.2s;
+  color: #2c3e50;
+}
+
+.group summary:hover {
+  background-color: #e9ecef;
+}
+
+.group[open] summary {
+  background-color: #3498db;
+  color: white;
+}
+
+.group-links {
+  list-style: none;
+  padding: 15px 20px;
+  background-color: #fafafa;
+}
+
+.group-links li {
+  margin-bottom: 10px;
+  padding-left: 20px;
+  position: relative;
+}
+
+.group-links li::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  color: #3498db;
+  font-weight: bold;
+}
+
+.group-links a {
+  color: #3498db;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.group-links a:hover {
+  color: #2980b9;
+  text-decoration: underline;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  body {
+    padding: 10px;
+  }
+
+  .container {
+    padding: 20px;
+  }
+
+  h1 {
+    font-size: 1.5em;
+  }
+}

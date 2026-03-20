@@ -14,9 +14,10 @@
 
 ## 2. Group Syntax
 
-- **Group header**: `- [GroupName]` (dash, space, brackets with text)
+- **Group header**: `- GroupName` (dash, space, text with no URL)
 - **Group children**: Links indented with 2+ spaces beneath header
 - **Ungrouped links**: Links at root indentation level (0 spaces)
+- **Detection**: A line starting with `- ` that doesn't contain a URL is treated as a group header
 
 ## 3. Parsing Rules
 
@@ -26,7 +27,7 @@
 
 - Line starts with 0+ spaces, then optional `- `, then content
 - Content types:
-  1. `[GroupName]` → Group header (literal brackets)
+  1. `- GroupName` → Group header (no URL found in line)
   2. `[Text](URL)` → Markdown link
   3. `[Text](URL){target="..."}` → Markdown link with attributes
   4. `<a href="...">...</a>` → Pass-through HTML
