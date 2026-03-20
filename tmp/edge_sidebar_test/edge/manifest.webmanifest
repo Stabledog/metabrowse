@@ -1,0 +1,9 @@
+
+{
+  "name": "Edge Sidebar App",
+  "short_name": "EdgeApp",
+  "start_url": "/edge/",
+  "display": "standalone",
+  "icons": [],
+  "edge_side_panel": {}
+}

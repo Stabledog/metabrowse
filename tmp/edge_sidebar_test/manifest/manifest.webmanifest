@@ -1,0 +1,8 @@
+
+{
+  "name": "Test App",
+  "short_name": "Test",
+  "start_url": "/manifest/",
+  "display": "standalone",
+  "icons": []
+}
