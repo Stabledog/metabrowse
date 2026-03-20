@@ -57,3 +57,7 @@ class HTMLGenerator:
         # Copy CSS file
         if css_source.exists():
             shutil.copy2(css_source, css_dest)
+
+        # Create .nojekyll file to disable Jekyll on GitHub Pages
+        nojekyll_file = self.output_dir / '.nojekyll'
+        nojekyll_file.touch()
