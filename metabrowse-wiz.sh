@@ -55,7 +55,7 @@ EOF
     }
 
     get_template_content() {
-        cut -c 12- <<'EOF'
+        cut -c 13- <<'EOF'
             # Page Title
 
             Edit this file to add your links and organize them into groups.
