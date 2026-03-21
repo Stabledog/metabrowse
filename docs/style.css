@@ -90,9 +90,9 @@ h1.breadcrumbs {
 .children-nav {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
-  margin-bottom: 20px;
-  padding: 10px;
+  gap: 6px;
+  margin-bottom: 15px;
+  padding: 8px;
   background-color: #f8f9fa;
   border-radius: 4px;
   border: 1px solid #e0e0e0;
@@ -100,12 +100,13 @@ h1.breadcrumbs {
 
 .child-link {
   display: inline-block;
-  padding: 7px 13px;
+  padding: 5px 10px;
   background-color: #3498db;
   color: white;
   text-decoration: none;
   border-radius: 3px;
   font-weight: 500;
+  font-size: 0.9em;
   transition: background-color 0.2s, transform 0.1s;
   white-space: nowrap;
 }
@@ -119,11 +120,11 @@ h1.breadcrumbs {
 /* Links */
 .links {
   list-style: none;
-  margin-bottom: 20px;
+  margin-bottom: 15px;
 }
 
 .links li {
-  margin-bottom: 8px;
+  margin-bottom: 5px;
   padding-left: 13px;
   position: relative;
 }
@@ -140,6 +141,7 @@ h1.breadcrumbs {
   color: #3498db;
   text-decoration: none;
   transition: color 0.2s;
+  font-size: 0.85em;
 }
 
 .links a:hover {
@@ -157,7 +159,7 @@ h1.breadcrumbs {
 
 /* Groups */
 .group {
-  margin-bottom: 13px;
+  margin-bottom: 8px;
   border: 1px solid #e0e0e0;
   border-radius: 4px;
   overflow: hidden;
@@ -165,12 +167,13 @@ h1.breadcrumbs {
 
 .group summary {
   background-color: #f8f9fa;
-  padding: 10px 13px;
+  padding: 6px 13px;
   font-weight: 600;
   cursor: pointer;
   user-select: none;
   transition: background-color 0.2s;
   color: #2c3e50;
+  font-size: 0.9em;
 }
 
 .group summary:hover {
@@ -196,12 +199,12 @@ h1.breadcrumbs {
 
 .group-links {
   list-style: none;
-  padding: 10px 13px;
+  padding: 6px 13px;
   background-color: #fafafa;
 }
 
 .group-links li {
-  margin-bottom: 7px;
+  margin-bottom: 4px;
   padding-left: 13px;
   position: relative;
 }
@@ -218,6 +221,7 @@ h1.breadcrumbs {
   color: #3498db;
   text-decoration: none;
   transition: color 0.2s;
+  font-size: 0.85em;
 }
 
 .group-links a:hover {
