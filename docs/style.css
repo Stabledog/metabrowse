@@ -10,15 +10,16 @@ body {
   line-height: 1.6;
   color: #333;
   background-color: #f5f5f5;
-  padding: 20px;
+  padding: 13px;
+  font-size: 0.9em;
 }
 
 .container {
   max-width: 900px;
   margin: 0 auto;
   background-color: white;
-  padding: 30px;
-  border-radius: 8px;
+  padding: 20px;
+  border-radius: 5px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
@@ -27,17 +28,17 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 20px;
-  margin-bottom: 20px;
-  padding: 15px;
+  gap: 13px;
+  margin-bottom: 13px;
+  padding: 10px;
   background-color: #f8f9fa;
-  border-radius: 6px;
+  border-radius: 4px;
 }
 
 h1.breadcrumbs {
   margin: 0;
   padding: 0;
-  font-size: 1.4em;
+  font-size: 0.95em;
   color: #2c3e50;
   font-weight: normal;
   border-bottom: none;
@@ -57,7 +58,7 @@ h1.breadcrumbs {
 }
 
 .breadcrumb-separator {
-  margin: 0 10px;
+  margin: 0 7px;
   color: #7f8c8d;
   font-weight: 300;
 }
@@ -69,12 +70,12 @@ h1.breadcrumbs {
 
 .edit-link {
   display: inline-block;
-  padding: 8px 16px;
+  padding: 5px 11px;
   background-color: #95a5a6;
   color: white;
   text-decoration: none;
-  border-radius: 4px;
-  font-size: 0.85em;
+  border-radius: 3px;
+  font-size: 0.57em;
   font-weight: 500;
   transition: background-color 0.2s;
   white-space: nowrap;
@@ -89,21 +90,21 @@ h1.breadcrumbs {
 .children-nav {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 30px;
-  padding: 15px;
+  gap: 7px;
+  margin-bottom: 20px;
+  padding: 10px;
   background-color: #f8f9fa;
-  border-radius: 6px;
+  border-radius: 4px;
   border: 1px solid #e0e0e0;
 }
 
 .child-link {
   display: inline-block;
-  padding: 10px 20px;
+  padding: 7px 13px;
   background-color: #3498db;
   color: white;
   text-decoration: none;
-  border-radius: 4px;
+  border-radius: 3px;
   font-weight: 500;
   transition: background-color 0.2s, transform 0.1s;
   white-space: nowrap;
@@ -111,19 +112,19 @@ h1.breadcrumbs {
 
 .child-link:hover {
   background-color: #2980b9;
-  transform: translateY(-2px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transform: translateY(-1px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 /* Links */
 .links {
   list-style: none;
-  margin-bottom: 30px;
+  margin-bottom: 20px;
 }
 
 .links li {
-  margin-bottom: 12px;
-  padding-left: 20px;
+  margin-bottom: 8px;
+  padding-left: 13px;
   position: relative;
 }
 
@@ -147,24 +148,24 @@ h1.breadcrumbs {
 }
 
 .link-comment {
-  font-size: 0.85em;
+  font-size: 0.57em;
   color: #7f8c8d;
   font-style: italic;
-  margin-top: 4px;
-  margin-left: 20px;
+  margin-top: 3px;
+  margin-left: 13px;
 }
 
 /* Groups */
 .group {
-  margin-bottom: 20px;
+  margin-bottom: 13px;
   border: 1px solid #e0e0e0;
-  border-radius: 6px;
+  border-radius: 4px;
   overflow: hidden;
 }
 
 .group summary {
   background-color: #f8f9fa;
-  padding: 15px 20px;
+  padding: 10px 13px;
   font-weight: 600;
   cursor: pointer;
   user-select: none;
@@ -182,11 +183,11 @@ h1.breadcrumbs {
 }
 
 .group-comment {
-  font-size: 0.85em;
+  font-size: 0.57em;
   color: #7f8c8d;
   font-style: italic;
   font-weight: normal;
-  margin-top: 4px;
+  margin-top: 3px;
 }
 
 .group[open] summary .group-comment {
@@ -195,13 +196,13 @@ h1.breadcrumbs {
 
 .group-links {
   list-style: none;
-  padding: 15px 20px;
+  padding: 10px 13px;
   background-color: #fafafa;
 }
 
 .group-links li {
-  margin-bottom: 10px;
-  padding-left: 20px;
+  margin-bottom: 7px;
+  padding-left: 13px;
   position: relative;
 }
 
@@ -227,11 +228,11 @@ h1.breadcrumbs {
 /* Responsive design */
 @media (max-width: 768px) {
   body {
-    padding: 10px;
+    padding: 7px;
   }
 
   .container {
-    padding: 20px;
+    padding: 13px;
   }
 
   .header-bar {
@@ -240,7 +241,7 @@ h1.breadcrumbs {
   }
 
   h1.breadcrumbs {
-    font-size: 1.2em;
+    font-size: 0.8em;
   }
 
   .edit-link {
