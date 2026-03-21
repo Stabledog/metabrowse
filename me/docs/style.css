@@ -117,21 +117,6 @@ h1.breadcrumbs {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
-.child-link-wrap {
-  display: inline-flex;
-  align-items: center;
-}
-
-.child-copy-btn {
-  opacity: 0.15;
-  margin-left: 1px;
-  font-size: 0.65em;
-}
-
-.child-copy-btn:hover {
-  opacity: 0.7;
-}
-
 /* Links */
 .links {
   list-style: none;

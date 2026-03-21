@@ -187,6 +187,8 @@ my-metabrowse-links/
 - Markdown: `- [Link text](https://example.com)`
 - With explicit target: `- [Link text](https://example.com){target="_custom"}`
 - Raw HTML: `- <a href="https://example.com">Text</a>`
+- Any `scheme://` URL: `- chrome://settings` or `- edge://favorites`
+- Mailto/tel/about: `- mailto:user@example.com` or `- tel:+1234567890`
 
 **Comments**: Add `# comment text` at the end of any link or group line:
 - Comments are displayed as small, gray, italic text below the link/group
@@ -201,8 +203,8 @@ my-metabrowse-links/
 ## Key Implementation Details
 
 1. **Target generation**: The transformer distinguishes between navigation and payload links:
-   - **External URLs** (starting with http:// or https://): Use `hashlib.sha256(url.encode()).hexdigest()[:8]` for deterministic 8-character targets (enables tab reuse)
-   - **Internal URLs** (relative paths): Use `target="_self"` to keep navigation in the same tab
+   - **External URLs** (any URL with a scheme — `://` or `mailto:`/`tel:`/`about:`): Use `hashlib.sha256(url.encode()).hexdigest()[:8]` for deterministic 8-character targets (enables tab reuse). Supported schemes include http, https, ftp, chrome, edge, brave, vscode, ssh, mailto, tel, about, and any other `word://` pattern.
+   - **Internal URLs** (relative paths without a scheme): Use `target="_self"` to keep navigation in the same tab
    - **Explicit targets**: User-specified `{target="..."}` attributes override both behaviors
 
 2. **Indentation handling**: The parser tracks indent levels (spaces before content) to determine group membership. Children must have more spaces than their parent group header.

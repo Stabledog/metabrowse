@@ -27,7 +27,10 @@
     <!-- Child directories navigation -->
     <div class="children-nav">
       {% for child in children %}
-      <a href="{{ child.url }}" class="child-link" target="_self">{{ child.name }}</a>
+      <span class="child-link-wrap">
+        <a href="{{ child.url }}" class="child-link" target="_self">{{ child.name }}</a>
+        <button class="copy-btn child-copy-btn" data-url="{{ child.url }}" title="Copy URL">&#x1F4CB;</button>
+      </span>
       {% endfor %}
     </div>
     {% endif %}
@@ -42,6 +45,7 @@
         {% else %}
           <a href="{{ link.url }}" target="{{ link.target }}">{{ link.text }}</a>
         {% endif %}
+        <button class="copy-btn" data-url="{{ link.url }}" title="Copy URL">&#x1F4CB;</button>
         {% if link.comment %}
         <span class="link-comment">ℹ {{ link.comment }}</span>
         {% endif %}
@@ -68,6 +72,7 @@
           {% else %}
             <a href="{{ link.url }}" target="{{ link.target }}">{{ link.text }}</a>
           {% endif %}
+          <button class="copy-btn" data-url="{{ link.url }}" title="Copy URL">&#x1F4CB;</button>
           {% if link.comment %}
           <span class="link-comment">ℹ {{ link.comment }}</span>
           {% endif %}
@@ -78,5 +83,20 @@
     {% endfor %}
     {% endif %}
   </div>
+  <script>
+    document.addEventListener('click', function(e) {
+      var btn = e.target.closest('.copy-btn');
+      if (!btn) return;
+      var url = btn.getAttribute('data-url');
+      // Resolve relative URLs to absolute
+      var a = document.createElement('a');
+      a.href = url;
+      var absUrl = a.href;
+      navigator.clipboard.writeText(absUrl).then(function() {
+        btn.textContent = '\u2705';
+        setTimeout(function() { btn.innerHTML = '\u{1F4CB}'; }, 1500);
+      });
+    });
+  </script>
 </body>
 </html>

@@ -53,10 +53,19 @@ class Transformer:
             groups=html_groups
         )
 
+    # URL schemes that don't use :// authority syntax
+    _SCHEMES_WITHOUT_AUTHORITY = ('mailto:', 'tel:', 'about:')
+
+    @staticmethod
+    def _has_scheme(url: str) -> bool:
+        """Check if a URL has a scheme (e.g., http://, chrome://, mailto:)."""
+        return '://' in url or url.startswith(Transformer._SCHEMES_WITHOUT_AUTHORITY)
+
     def _transform_link(self, link: Link) -> HTMLLink:
         """Transform a Link to HTMLLink with target generation."""
         # Determine if this is an external (payload) or internal (navigation) link
-        is_external = link.url.startswith('http://') or link.url.startswith('https://')
+        # Any URL with a scheme is external; relative paths are internal
+        is_external = self._has_scheme(link.url)
 
         # Use explicit target if provided
         if link.target:

@@ -39,7 +39,9 @@ class MarkdownParser:
     PATTERN_HTML_LINK = re.compile(r'<a\s+href="([^"]+)"[^>]*>.*?</a>', re.IGNORECASE)
     PATTERN_MD_LINK_WITH_TARGET = re.compile(r'\[([^\]]+)\]\(([^)]+)\)\{target="([^"]+)"\}')
     PATTERN_MD_LINK = re.compile(r'\[([^\]]+)\]\(([^)]+)\)')
-    PATTERN_BARE_URL = re.compile(r'https?://[^\s]+')
+    # Match URLs with :// (http, https, ftp, chrome, edge, vscode, ssh, etc.)
+    # and specific schemes without :// (mailto:, tel:, about:)
+    PATTERN_BARE_URL = re.compile(r'[a-zA-Z][a-zA-Z0-9+.-]*://[^\s]+|(?:mailto|tel|about):[^\s]+')
 
     @staticmethod
     def _extract_comment(text: str) -> tuple[str, Optional[str]]:
