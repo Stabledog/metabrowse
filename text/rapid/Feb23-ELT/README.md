@@ -1,4 +1,0 @@
-- Class page https://bbgithub.dev.bloomberg.com/training-assets/cohorts/blob/main/NHT-2026-02-23-ELT-NY/README.md
-- Heatmap https://docs.google.com/spreadsheets/d/191Iq5nxbpXwsdqvvhPHpwNC0l-5VdzyBdz9qr494hW8/edit?gid=1391906508#gid=1391906508
-- Open issue for guts harness https://bbgithub.dev.bloomberg.com/training-assets/guts-project-harness/issues/47#
-- Junk https://identity-exchange.dna.prod.bloomberg.com/api/v1/oidc/bri:si:dna-security:identity-exchange:bsso-oidc:dna-identity-exchange-prod:bsso-oidc:dna-identity-exchange-prod:archer:mlp/callback?code=ZpOLYCBLEi-Alb9gKpZbe_hy0CONiIJDV7YAAAAi&state=state-idx%3AeyJWZXJzaW9uIjoidjEiLCJCUkkiOiJicmk6c2k6ZG5hLXNlY3VyaXR5OmlkZW50aXR5LWV4Y2hhbmdlOmJzc28tb2lkYzpkbmEtaWRlbnRpdHktZXhjaGFuZ2UtcHJvZDpic3NvLW9pZGM6ZG5hLWlkZW50aXR5LWV4Y2hhbmdlLXByb2Q6YXJjaGVyOm1scCIsIlJlZGlyZWN0VVJMIjoiIn0%3D
