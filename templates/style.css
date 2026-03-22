@@ -283,3 +283,19 @@ h1.breadcrumbs {
     font-size: 0.8em;
   }
 }
+
+/* Favicon styling */
+.link-favicon {
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+  vertical-align: text-bottom;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+/* Hide broken/missing favicons */
+.link-favicon:not([src]),
+.link-favicon[src=""] {
+  display: none;
+}

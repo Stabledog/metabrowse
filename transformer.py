@@ -14,6 +14,7 @@ class HTMLLink:
     target: str
     raw_html: Optional[str] = None
     comment: Optional[str] = None
+    url_hash: Optional[str] = None  # SHA256 hash for localStorage key
 
 
 @dataclass
@@ -80,12 +81,18 @@ class Transformer:
         # Use provided text or default to URL
         text = link.text if link.text else link.url
 
+        # Generate hash for external http(s) links (for localStorage key)
+        url_hash = None
+        if is_external and link.url.startswith(('http://', 'https://')):
+            url_hash = self.generate_target(link.url)  # Reuse existing hash
+
         return HTMLLink(
             url=link.url,
             text=text,
             target=target,
             raw_html=link.raw_html,
-            comment=link.comment
+            comment=link.comment,
+            url_hash=url_hash
         )
 
     def _transform_group(self, group: Group) -> HTMLGroup:
