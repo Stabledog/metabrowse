@@ -108,163 +108,92 @@
 (function() {
   'use strict';
 
-  const FAVICON_CACHE_PREFIX = 'metabrowse-favicon-';
-  const FAVICON_FAILED_PREFIX = 'metabrowse-favicon-failed-';
-  const MAX_CACHE_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+  var FAVICON_CACHE_PREFIX = 'metabrowse-fav-';
+  var FAIL_RETRY_MS = 24 * 60 * 60 * 1000; // Retry failed domains after 24 hours
+  var PATHS_TO_TRY = ['/favicon.ico', '/favicon.png', '/favicon.svg'];
 
-  // Get cached favicon from localStorage
-  function getCachedFavicon(urlHash) {
+  // Get cached path for a domain from localStorage
+  function getCachedPath(domain) {
     try {
-      const key = FAVICON_CACHE_PREFIX + urlHash;
-      const cached = localStorage.getItem(key);
-      if (!cached) return null;
-
-      const data = JSON.parse(cached);
-      const age = Date.now() - data.timestamp;
-
-      // Expire old entries
-      if (age > MAX_CACHE_AGE_MS) {
-        localStorage.removeItem(key);
-        return null;
+      var raw = localStorage.getItem(FAVICON_CACHE_PREFIX + domain);
+      if (!raw) return null;
+      var data = JSON.parse(raw);
+      if (data.failed) {
+        if (Date.now() - data.ts > FAIL_RETRY_MS) {
+          localStorage.removeItem(FAVICON_CACHE_PREFIX + domain);
+          return null;
+        }
+        return 'FAILED';
       }
-
-      return data.dataUrl;
+      return data.path;
     } catch (e) {
       return null;
     }
   }
 
-  // Cache favicon in localStorage
-  function cacheFavicon(urlHash, dataUrl) {
+  // Cache which path worked for a domain
+  function cachePath(domain, path) {
     try {
-      const key = FAVICON_CACHE_PREFIX + urlHash;
-      const data = JSON.stringify({
-        dataUrl: dataUrl,
-        timestamp: Date.now()
-      });
-      localStorage.setItem(key, data);
-    } catch (e) {
-      // localStorage quota exceeded or disabled - silently fail
-    }
+      localStorage.setItem(FAVICON_CACHE_PREFIX + domain,
+        JSON.stringify({ path: path, ts: Date.now() }));
+    } catch (e) {}
   }
 
-  // Check if favicon fetch previously failed
-  function hasFailed(urlHash) {
+  // Mark a domain as having no favicon (with TTL)
+  function markFailed(domain) {
     try {
-      return localStorage.getItem(FAVICON_FAILED_PREFIX + urlHash) === 'true';
-    } catch (e) {
-      return false;
+      localStorage.setItem(FAVICON_CACHE_PREFIX + domain,
+        JSON.stringify({ failed: true, ts: Date.now() }));
+    } catch (e) {}
+  }
+
+  // Try favicon paths in sequence using img onerror chaining
+  function tryPaths(imgElement, origin, domain, index) {
+    if (index >= PATHS_TO_TRY.length) {
+      imgElement.style.display = 'none';
+      markFailed(domain);
+      return;
     }
-  }
-
-  // Mark favicon as failed
-  function markFailed(urlHash) {
-    try {
-      localStorage.setItem(FAVICON_FAILED_PREFIX + urlHash, 'true');
-    } catch (e) {
-      // Ignore
-    }
-  }
-
-  // Convert blob to base64 data URL
-  function blobToDataUrl(blob) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-  }
-
-  // Try fetching favicon from a direct URL
-  function tryDirectFetch(linkUrl, path) {
-    const url = new URL(linkUrl);
-    return fetch(url.origin + path)
-      .then(response => {
-        if (!response.ok) throw new Error('Not found');
-        return response.blob();
-      });
-  }
-
-  // Try parsing HTML to find favicon link
-  function tryHTMLParsing(pageUrl) {
-    return fetch(pageUrl)
-      .then(response => response.text())
-      .then(html => {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, 'text/html');
-
-        const iconLink =
-          doc.querySelector('link[rel="icon"]') ||
-          doc.querySelector('link[rel="shortcut icon"]') ||
-          doc.querySelector('link[rel="apple-touch-icon"]');
-
-        if (!iconLink) throw new Error('No icon found');
-
-        const faviconUrl = new URL(iconLink.href, pageUrl).href;
-        return fetch(faviconUrl)
-          .then(r => {
-            if (!r.ok) throw new Error('Fetch failed');
-            return r.blob();
-          });
-      });
-  }
-
-  // Try multiple strategies in sequence
-  function tryStrategies(strategies, index) {
-    if (index >= strategies.length) {
-      return Promise.reject('All strategies failed');
-    }
-
-    return strategies[index]()
-      .catch(() => tryStrategies(strategies, index + 1));
-  }
-
-  // Fetch favicon with smart fallback strategies
-  function fetchFaviconSmart(linkUrl, urlHash, imgElement) {
-    const strategies = [
-      () => tryDirectFetch(linkUrl, '/favicon.ico'),
-      () => tryDirectFetch(linkUrl, '/favicon.png'),
-      () => tryDirectFetch(linkUrl, '/favicon.svg'),
-      () => tryHTMLParsing(linkUrl)
-    ];
-
-    return tryStrategies(strategies, 0)
-      .then(blob => blobToDataUrl(blob))
-      .then(dataUrl => {
-        cacheFavicon(urlHash, dataUrl);
-        if (imgElement) {
-          imgElement.src = dataUrl;
-        }
-        return dataUrl;
-      })
-      .catch(() => {
-        markFailed(urlHash);
-      });
+    var path = PATHS_TO_TRY[index];
+    imgElement.onerror = function() {
+      tryPaths(imgElement, origin, domain, index + 1);
+    };
+    imgElement.onload = function() {
+      cachePath(domain, path);
+    };
+    imgElement.src = origin + path;
   }
 
   // Load all favicons on page
   function loadFavicons() {
-    const faviconImages = document.querySelectorAll('.link-favicon[data-url-hash]');
+    var faviconImages = document.querySelectorAll('.link-favicon[data-url-hash]');
 
-    faviconImages.forEach(img => {
-      const urlHash = img.getAttribute('data-url-hash');
-      const linkUrl = img.getAttribute('data-link-url');
+    faviconImages.forEach(function(img) {
+      var linkUrl = img.getAttribute('data-link-url');
+      if (!linkUrl) return;
 
-      if (!urlHash || !linkUrl) return;
-
-      // Try cache first - instant display!
-      const cached = getCachedFavicon(urlHash);
-      if (cached) {
-        img.src = cached;
+      var origin, domain;
+      try {
+        var u = new URL(linkUrl);
+        origin = u.origin;
+        domain = u.hostname;
+      } catch (e) {
+        img.style.display = 'none';
         return;
       }
 
-      // Already failed before? Skip it
-      if (hasFailed(urlHash)) return;
+      var cached = getCachedPath(domain);
+      if (cached === 'FAILED') {
+        img.style.display = 'none';
+        return;
+      }
+      if (cached) {
+        img.onerror = function() { img.style.display = 'none'; };
+        img.src = origin + cached;
+        return;
+      }
 
-      // Fetch with smart fallback strategies
-      fetchFaviconSmart(linkUrl, urlHash, img);
+      tryPaths(img, origin, domain, 0);
     });
   }
 
