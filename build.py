@@ -175,15 +175,15 @@ def find_child_directories(readme_path: Path) -> list[dict[str, str]]:
     return children
 
 
-def get_git_info(project_root: Path) -> tuple[str, str, str]:
+def get_git_info(project_root: Path) -> tuple[str, str, str, str]:
     """
-    Extract git repository information.
+    Extract git repository information including host.
 
     Args:
         project_root: Path to the project root directory
 
     Returns:
-        Tuple of (org, repo, branch) or empty strings if git info unavailable
+        Tuple of (host, org, repo, branch) or empty strings if git info unavailable
     """
     try:
         # Try "origin" first, fall back to first available remote
@@ -210,7 +210,7 @@ def get_git_info(project_root: Path) -> tuple[str, str, str]:
             )
             if result.returncode != 0 or not result.stdout.strip():
                 print("Warning: No git remotes found; edit links will be omitted")
-                return ("", "", "")
+                return ("", "", "", "")
 
             remote_name = result.stdout.strip().splitlines()[0]
             result = subprocess.run(
@@ -222,15 +222,30 @@ def get_git_info(project_root: Path) -> tuple[str, str, str]:
             )
             if result.returncode != 0:
                 print(f"Warning: Could not get URL for remote '{remote_name}'; edit links will be omitted")
-                return ("", "", "")
+                return ("", "", "", "")
             remote_url = result.stdout.strip()
 
-        # Parse git@bbgithub.dev.bloomberg.com:org/repo.git or similar
+        # Extract host from remote URL
+        # For SSH: git@github.com:org/repo.git
+        # For HTTPS: https://github.com/org/repo.git
+        host = ""
+        if remote_url.startswith("https://") or remote_url.startswith("http://"):
+            # HTTPS format
+            host_match = re.search(r'https?://([^/]+)/', remote_url)
+            if host_match:
+                host = host_match.group(1)
+        elif "@" in remote_url:
+            # SSH format: git@host:org/repo.git
+            host_match = re.search(r'@([^:]+):', remote_url)
+            if host_match:
+                host = host_match.group(1)
+
+        # Parse org/repo from URL
         # Matches both SSH and HTTPS formats
         match = re.search(r'[:/]([^/]+)/([^/]+?)(?:\.git)?$', remote_url)
         if not match:
             print(f"Warning: Could not parse remote URL '{remote_url}'; edit links will be omitted")
-            return ("", "", "")
+            return ("", "", "", "")
 
         org = match.group(1)
         repo = match.group(2)
@@ -246,30 +261,37 @@ def get_git_info(project_root: Path) -> tuple[str, str, str]:
 
         branch = result.stdout.strip() if result.returncode == 0 else "main"
 
-        return (org, repo, branch)
+        if not host:
+            print(f"Warning: Could not extract host from remote URL '{remote_url}'; edit links will be omitted")
+            return ("", "", "", "")
+
+        return (host, org, repo, branch)
     except FileNotFoundError:
         print("Warning: 'git' not found on PATH; edit links will be omitted")
-        return ("", "", "")
+        return ("", "", "", "")
     except Exception as e:
         print(f"Warning: Could not get git info ({e}); edit links will be omitted")
-        return ("", "", "")
+        return ("", "", "", "")
 
 
-def generate_edit_url(readme_path: Path, text_root: Path, org: str, repo: str, branch: str) -> str:
+def generate_edit_url(readme_path: Path, text_root: Path, host: str, org: str, repo: str, branch: str) -> str:
     """
-    Generate BBGitHub edit URL for a README.md file.
+    Generate edit URL for a README.md file in the git repository.
+
+    Supports GitHub, GitLab, and other git hosting services.
 
     Args:
         readme_path: Path to the README.md file
         text_root: Path to the text/ root directory
-        org: GitHub organization
+        host: Git hosting service domain (e.g., "github.com", "gitlab.com")
+        org: Organization or user name
         repo: Repository name
         branch: Git branch name
 
     Returns:
-        URL to edit the file in BBGitHub, or empty string if git info unavailable
+        URL to edit the file in the git web interface, or empty string if git info unavailable
     """
-    if not org or not repo or not branch:
+    if not host or not org or not repo or not branch:
         return ""
 
     # Calculate relative path from project root
@@ -277,7 +299,13 @@ def generate_edit_url(readme_path: Path, text_root: Path, org: str, repo: str, b
         rel_path = readme_path.relative_to(text_root.parent)
         # Convert Path to forward-slash string for URL
         path_str = str(rel_path).replace('\\', '/')
-        return f"https://bbgithub.dev.bloomberg.com/{org}/{repo}/blob/{branch}/{path_str}"
+
+        # GitLab uses a different URL format with /-/blob/
+        # Most other hosts (GitHub, GitHub Enterprise, etc.) use /blob/
+        if "gitlab" in host.lower():
+            return f"https://{host}/{org}/{repo}/-/blob/{branch}/{path_str}"
+        else:
+            return f"https://{host}/{org}/{repo}/blob/{branch}/{path_str}"
     except ValueError:
         return ""
 
@@ -300,9 +328,9 @@ def build():
     generator = HTMLGenerator(template_dir, docs_root)
 
     # Get git repository information for edit links
-    org, repo, branch = get_git_info(content_root)
-    if org and repo:
-        print(f"Git repository: {org}/{repo} (branch: {branch})")
+    host, org, repo, branch = get_git_info(content_root)
+    if host and org and repo:
+        print(f"Git repository: {host}/{org}/{repo} (branch: {branch})")
 
     # Copy static assets first
     print("Copying static assets...")
@@ -356,7 +384,7 @@ def build():
         children = find_child_directories(readme_path)
 
         # Generate edit URL
-        edit_url = generate_edit_url(readme_path, text_root, org, repo, branch)
+        edit_url = generate_edit_url(readme_path, text_root, host, org, repo, branch)
 
         # Generate HTML
         generator.generate_html(html_doc, output_file, css_path, favicon_path, breadcrumbs, current_name, children, edit_url)

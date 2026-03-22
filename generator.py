@@ -33,7 +33,7 @@ class HTMLGenerator:
             breadcrumbs: List of breadcrumb dicts with 'name' and 'url' keys
             current_name: Name of the current page (last breadcrumb, not a link)
             children: List of child directory dicts with 'name' and 'url' keys
-            edit_url: URL to edit the source file in BBGitHub (empty string if unavailable)
+            edit_url: URL to edit the source file in the git web interface (empty string if unavailable)
         """
         if children is None:
             children = []

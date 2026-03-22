@@ -1,7 +1,5 @@
 # Metabrowse
 
-[![Spaces](https://spaces.dx.bloomberg.com/badge.svg)](https://spaces.dx.bloomberg.com/badges/create?org=lmatheson4&repo=metabrowse)
-
 A markdown-to-HTML static site generator for teaching materials with collapsible link groups and browser tab reuse.
 
 ## Architecture

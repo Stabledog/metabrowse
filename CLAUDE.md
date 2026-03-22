@@ -23,8 +23,9 @@ The build script (`build-metabrowse.sh`) is run from a content directory and inv
    - Displayed as horizontal buttons with wrapping support
    - Sorted alphabetically, directory names formatted with title case
 6. **Favicon support** - automatically copies `text/favicon.png` to `docs/` and links it in all pages
-7. **Edit links** - "Edit" button on every page links to source README.md in BBGitHub
-   - Auto-detects repository from git remote
+7. **Edit links** - "Edit" button on every page links to source README.md in the git web interface
+   - Auto-detects repository host, organization, and branch from git remote
+   - Supports GitHub, GitLab, and other git hosting services
    - Opens in new tab to preserve navigation state
 8. **Inline comments** - add `# comment text` to any link or group for context
    - Displayed as small gray italic text below the link/group
@@ -110,7 +111,7 @@ Key method: `generate_target(url)` - creates hash-based target for external URLs
 - Generates clickable breadcrumb navigation via `get_breadcrumbs_from_path()`
 - Calculates relative CSS and favicon paths based on nesting depth
 - Auto-detects child directories containing README.md files via `find_child_directories()`
-- Extracts git repository info via `get_git_info()` and generates BBGitHub edit URLs via `generate_edit_url()`
+- Extracts git repository info via `get_git_info()` and generates edit URLs via `generate_edit_url()`
 
 ### 5. Build Wrapper (`build-metabrowse.sh`)
 - User-facing entry point for building content
@@ -223,7 +224,10 @@ my-metabrowse-links/
 
 7. **Favicon handling**: If `text/favicon.png` exists, it's copied to `docs/favicon.png` during build and linked with appropriate relative paths in all generated HTML files.
 
-8. **Edit link generation**: `get_git_info()` parses `git remote get-url origin` to extract organization, repository, and branch. `generate_edit_url()` constructs BBGitHub URLs in the format: `https://bbgithub.dev.bloomberg.com/{org}/{repo}/blob/{branch}/text/{path}/README.md`. Edit links open in new tabs (target="_blank").
+8. **Edit link generation**: `get_git_info()` parses `git remote get-url origin` to extract the git host, organization, repository, and branch. `generate_edit_url()` constructs edit URLs appropriate for the detected git hosting service:
+   - **GitHub/GitHub Enterprise**: `https://{host}/{org}/{repo}/blob/{branch}/text/{path}/README.md`
+   - **GitLab**: `https://{host}/{org}/{repo}/-/blob/{branch}/text/{path}/README.md`
+   Edit links open in new tabs (target="_blank").
 
 ## Development Workflow
 
