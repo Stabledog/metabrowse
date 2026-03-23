@@ -55,37 +55,13 @@ EOF
     }
 
     get_template_content() {
-        cut -c 13- <<'EOF'
-            # Page Title
+        local title="$1"
+        cut -c 13- <<EOF
+            # Title: $title
 
-            - https://example.com # Raw link with comment
-            - Example Site https://example.org
-            - [Markdown Link](https://wikipedia.org)
-            - [Markdown Link](https://wikipedia.org) # with a comment? 🌼
+            Group Name
+              - https://bbgithub.dev.bloomberg.com
 
-            ## Sample Groups
-
-            - Learning Resources # Resources for getting started
-              - [Khan Academy](https://khanacademy.org) # Free online courses
-              - [MDN Web Docs](https://developer.mozilla.org) # Comprehensive web documentation
-              - MIT OpenCourseWare https://ocw.mit.edu
-
-            - Tools and Utilities
-              - [GitHub](https://github.com)
-              - Stack Overflow https://stackoverflow.com # Programming Q&A community
-              - [Regex101](https://regex101.com) # Test regular expressions
-
-            - Documentation # Official documentation links
-              - [Python Docs](https://docs.python.org)
-              - [Bash Manual](https://gnu.org/software/bash/manual/)
-
-            ## Notes
-
-            - Lines starting with `- ` and no URL create collapsible groups
-            - Indent child links with more spaces than the group header
-            - Add `# comment` at the end of any link or group for context
-            - External URLs automatically open in reusable tabs
-            - Child directories are auto-detected and displayed as navigation buttons
 EOF
     }
 
@@ -103,7 +79,7 @@ EOF
         if [[ -f "${readme_path}" ]]; then
             echo "==> Skipped ${dir_path} (README.md already exists)" >&2
         else
-            get_template_content > "${readme_path}" || die "Failed to create ${readme_path}"
+            get_template_content "$(dirname "${full_path}")" > "${readme_path}" || die "Failed to create ${readme_path}"
             echo "==> Created ${dir_path}/README.md" >&2
         fi
     }
