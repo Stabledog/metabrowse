@@ -239,6 +239,25 @@ def get_git_info(project_root: Path) -> tuple[str, str, str, str]:
             host_match = re.search(r'@([^:]+):', remote_url)
             if host_match:
                 host = host_match.group(1)
+        else:
+            # SSH config alias format: alias:org/repo.git
+            alias_match = re.match(r'^([A-Za-z0-9._-]+):', remote_url)
+            if alias_match:
+                alias = alias_match.group(1)
+                try:
+                    ssh_result = subprocess.run(
+                        ["ssh", "-G", alias],
+                        capture_output=True,
+                        text=True,
+                        timeout=5
+                    )
+                    if ssh_result.returncode == 0:
+                        for line in ssh_result.stdout.splitlines():
+                            if line.startswith("hostname "):
+                                host = line.split(" ", 1)[1]
+                                break
+                except (FileNotFoundError, subprocess.TimeoutExpired):
+                    pass
 
         # Parse org/repo from URL
         # Matches both SSH and HTTPS formats

@@ -21,6 +21,8 @@
       </h1>
       {% if edit_url %}
       <a href="{{ edit_url }}" class="edit-link" target="_blank" rel="noopener noreferrer">Edit</a>
+      {% else %}
+      <span class="edit-link edit-link-disabled" title="Edit link unavailable (no git remote found)">Edit</span>
       {% endif %}
     </div>
 
