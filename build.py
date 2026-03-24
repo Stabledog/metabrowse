@@ -6,6 +6,7 @@ Walks the text/ directory tree, processes each README.md file,
 and generates corresponding index.html files in the docs/ directory.
 """
 
+import json
 import re
 import subprocess
 from pathlib import Path
@@ -364,6 +365,9 @@ def build():
 
     print(f"Found {len(readme_files)} README.md file(s)")
 
+    # Collect search index entries as we process pages
+    search_index = []
+
     # Process each README.md
     for readme_path in readme_files:
         print(f"Processing: {readme_path}")
@@ -405,10 +409,56 @@ def build():
         # Generate edit URL
         edit_url = generate_edit_url(readme_path, text_root, host, org, repo, branch)
 
+        # Calculate relative path for this page (used in search index)
+        try:
+            page_rel = str(output_file.relative_to(docs_root)).replace('\\', '/')
+        except ValueError:
+            page_rel = "index.html"
+
+        # Calculate search index path for this page
+        try:
+            page_depth = len(output_file.parent.relative_to(docs_root).parts)
+        except ValueError:
+            page_depth = 0
+        search_index_path = "../" * page_depth + "search-index.json"
+
         # Generate HTML
-        generator.generate_html(html_doc, output_file, css_path, favicon_path, breadcrumbs, current_name, children, edit_url)
+        generator.generate_html(html_doc, output_file, css_path, favicon_path, breadcrumbs, current_name, children, edit_url, search_index_path)
 
         print(f"  → Generated: {output_file}")
+
+        # Build search index entry for this page
+        breadcrumb_str = " / ".join([bc["name"] for bc in breadcrumbs] + [current_name])
+        index_links = []
+        for link in html_doc.ungrouped_links:
+            if link.raw_html:
+                continue
+            entry = {"text": link.text, "url": link.url}
+            if link.comment:
+                entry["comment"] = link.comment
+            index_links.append(entry)
+        for group in html_doc.groups:
+            for link in group.links:
+                if link.raw_html:
+                    continue
+                entry = {"text": link.text, "url": link.url, "group": group.name}
+                if link.comment:
+                    entry["comment"] = link.comment
+                index_links.append(entry)
+        search_index.append({
+            "path": page_rel,
+            "title": title,
+            "breadcrumbs": breadcrumb_str,
+            "links": index_links,
+            "groups": [g.name for g in html_doc.groups],
+            "children": [c["name"] for c in children]
+        })
+
+    # Write search index
+    search_index_path = docs_root / "search-index.json"
+    with open(search_index_path, 'w', encoding='utf-8', newline='\n') as f:
+        json.dump(search_index, f, ensure_ascii=False)
+    print(f"Generated search index: {search_index_path}")
 
     print("\nBuild complete!")
     print(f"Output directory: {docs_root}")

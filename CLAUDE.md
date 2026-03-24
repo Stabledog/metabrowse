@@ -30,6 +30,9 @@ The build script (`build-metabrowse.sh`) is run from a content directory and inv
 8. **Inline comments** - add `# comment text` to any link or group for context
    - Displayed as small gray italic text below the link/group
    - Plain text only, no markup interpretation
+9. **Search** - two complementary search modes:
+   - **In-page filter**: type in the filter box (or press `/`) to instantly hide non-matching links, groups, and child buttons on the current page
+   - **Global cross-page search**: press `Ctrl+K` (or click "Global") to search across all pages using a build-time JSON index (`docs/search-index.json`)
 
 ## Build Commands
 
@@ -167,6 +170,7 @@ my-metabrowse-links/
     ├── index.html
     ├── style.css         # Copied from templates/
     ├── favicon.png       # Copied from text/ if present
+    ├── search-index.json # Build-time search index for cross-page search
     └── .nojekyll         # GitHub Pages marker
 ```
 
@@ -230,6 +234,12 @@ my-metabrowse-links/
    - **GitHub/GitHub Enterprise**: `https://{host}/{org}/{repo}/blob/{branch}/text/{path}/README.md`
    - **GitLab**: `https://{host}/{org}/{repo}/-/blob/{branch}/text/{path}/README.md`
    Edit links open in new tabs (target="_blank").
+
+9. **Search index generation**: `build.py` generates `docs/search-index.json` containing all pages' links, groups, children, and breadcrumbs. Each page entry includes path, title, breadcrumbs string, links array (with text, url, group, comment), group names, and child names. The index is loaded lazily by the global search modal on first use.
+
+10. **In-page filter**: Client-side JavaScript hides non-matching links, groups, and child buttons as the user types. Matches against link text, URLs, group names, and comments. Groups auto-expand when they contain matches. Keyboard shortcut `/` focuses the filter input.
+
+11. **Global cross-page search**: A modal overlay (`Ctrl+K`) fetches `search-index.json` and searches across all pages. Results are grouped by page with breadcrumb paths, matching text highlighted with `<mark>`. Supports searching link text, URLs, comments, group names, child names, and page titles.
 
 ## Development Workflow
 

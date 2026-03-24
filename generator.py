@@ -21,7 +21,7 @@ class HTMLGenerator:
         self.output_dir = output_dir
         self.env = Environment(loader=FileSystemLoader(str(template_dir)))
 
-    def generate_html(self, html_doc: HTMLDocument, output_path: Path, css_relative_path: str, favicon_relative_path: str, breadcrumbs: list, current_name: str, children: list = None, edit_url: str = ""):
+    def generate_html(self, html_doc: HTMLDocument, output_path: Path, css_relative_path: str, favicon_relative_path: str, breadcrumbs: list, current_name: str, children: list = None, edit_url: str = "", search_index_path: str = "search-index.json"):
         """
         Generate an HTML file from an HTMLDocument.
 
@@ -34,6 +34,7 @@ class HTMLGenerator:
             current_name: Name of the current page (last breadcrumb, not a link)
             children: List of child directory dicts with 'name' and 'url' keys
             edit_url: URL to edit the source file in the git web interface (empty string if unavailable)
+            search_index_path: Relative path to search-index.json from the HTML file
         """
         if children is None:
             children = []
@@ -50,7 +51,8 @@ class HTMLGenerator:
             breadcrumbs=breadcrumbs,
             current_name=current_name,
             children=children,
-            edit_url=edit_url
+            edit_url=edit_url,
+            search_index_path=search_index_path
         )
 
         # Ensure the output directory exists
