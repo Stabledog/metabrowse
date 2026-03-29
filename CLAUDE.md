@@ -8,7 +8,7 @@ Metabrowse is a markdown-to-HTML static site generator designed for teaching mat
 
 **Architecture**: Code and content are separated into different repositories:
 - **Code repository** (this repo): Build pipeline, parsers, transformers, templates
-- **Content repositories**: User's `text/` markdown files and generated `docs/` HTML
+- **Content repositories**: User's `text/` markdown files; `docs/` is a local build artifact (gitignored), deployed to `gh-pages` branch via GitHub Actions
 
 The build script (`build-metabrowse.sh`) is run from a content directory and invokes the build pipeline to convert README.md files in `text/` to HTML in `docs/` with these key features:
 1. **Collapsible link groups** - organize links into expandable sections
@@ -160,18 +160,26 @@ metabrowse/
 **Content repository** (user's separate repo):
 ```
 my-metabrowse-links/
+├── .github/workflows/
+│   └── build.yml         # GitHub Actions: build + deploy to gh-pages
 ├── text/                 # Source markdown files (input)
 │   ├── README.md         # Root index
 │   ├── <course>/
 │   │   └── README.md     # Course-specific links
 │   └── <course>/<topic>/
 │       └── README.md     # Nested topic links (unlimited depth)
-└── docs/                 # Generated HTML (output, GitHub Pages)
-    ├── index.html
-    ├── style.css         # Copied from templates/
-    ├── favicon.png       # Copied from text/ if present
-    ├── search-index.json # Build-time search index for cross-page search
-    └── .nojekyll         # GitHub Pages marker
+└── docs/                 # Local build artifact (gitignored, not committed)
+```
+
+**`gh-pages` branch** (auto-managed by GitHub Actions, never edited manually):
+```
+index.html
+style.css
+favicon.png
+search-index.json
+.nojekyll
+<course>/index.html
+...
 ```
 
 ## Markdown Syntax for text/ Files
@@ -258,7 +266,10 @@ After changes, run `make build` to regenerate all HTML files.
 
 ## GitHub Pages Deployment
 
-The `docs/` directory is configured for GitHub Pages:
+Content repositories deploy via GitHub Actions to a `gh-pages` branch:
+- On push to `main` (when `text/**` or `.github/workflows/**` change), the workflow builds the site and deploys using `peaceiris/actions-gh-pages@v4`
+- GitHub Pages is configured to serve from the `gh-pages` branch at root (`/`)
+- `docs/` is gitignored on `main` — it exists only as a local build artifact
+- The `gh-pages` branch is fully managed by the action; never edit it manually
 - `.nojekyll` file disables Jekyll processing
 - All paths are relative for portability
-- Static HTML requires no build step on GitHub's end
