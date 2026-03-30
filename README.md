@@ -74,7 +74,7 @@ Groups are created automatically when a line starts with `- ` but contains no UR
 - **Browser tab reuse**: Each unique URL gets a deterministic target attribute
 - **Multiple link formats**: Plain URLs, markdown links, HTML pass-through
 - **Custom targets**: Override default targets with `{target="..."}` syntax
-- **GitHub Pages ready**: Static HTML output in `docs/` directory
+- **GitHub Pages ready**: Outputs to `docs/` for local testing; typically deployed to `gh-pages` branch via CI/CD
 
 ## Building
 
