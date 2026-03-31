@@ -97,6 +97,27 @@ cd my-metabrowse-links
 ~/.local/bin/python3 /path/to/metabrowse/build.py
 ```
 
+## Local Testing
+
+After building, preview the generated site locally with the built-in web server:
+
+```bash
+# Run from your content directory (containing docs/)
+cd my-metabrowse-links
+/path/to/metabrowse/serve-metabrowse.sh
+
+# Visit http://localhost:3000 in your browser
+# Press Ctrl+C to stop the server
+```
+
+**Custom port:**
+```bash
+# Use -p flag or METABROWSE_PORT environment variable
+/path/to/metabrowse/serve-metabrowse.sh -p 8080
+```
+
+**Note:** The `docs/` directory is for local testing only and is typically gitignored. Production deployments use GitHub Actions to build and deploy to the `gh-pages` branch.
+
 ## Requirements
 
 - Python 3.6+

@@ -310,7 +310,7 @@ h1.breadcrumbs {
   display: none;
 }
 
-/* Search bar */
+/* Unified search bar */
 .search-bar {
   display: flex;
   align-items: center;
@@ -343,76 +343,51 @@ h1.breadcrumbs {
   box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.15);
 }
 
-.global-search-btn {
-  padding: 4px 10px;
-  background-color: #95a5a6;
-  color: white;
-  border: none;
-  border-radius: 3px;
-  font-size: 0.7em;
-  font-weight: 500;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background-color 0.2s;
-}
-
-.global-search-btn:hover {
-  background-color: #7f8c8d;
-}
-
-/* Global search modal overlay */
-.search-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding-top: 10vh;
-  z-index: 1000;
-}
-
-.search-modal {
-  background-color: white;
-  border-radius: 8px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
-  width: 90%;
-  max-width: 600px;
-  max-height: 70vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.search-modal-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px;
-  border-bottom: 1px solid #e0e0e0;
-}
-
-.search-modal-input {
-  flex: 1;
-  font-size: 1em;
-  padding: 6px 10px;
-}
-
-.search-modal-close {
+.clear-search-btn {
   background: none;
   border: none;
-  font-size: 1.4em;
+  font-size: 1.2em;
   cursor: pointer;
-  color: #7f8c8d;
+  color: #95a5a6;
   padding: 0 4px;
   line-height: 1;
+  flex-shrink: 0;
+  transition: color 0.2s;
 }
 
-.search-modal-close:hover {
-  color: #333;
+.clear-search-btn:hover {
+  color: #7f8c8d;
+}
+
+.search-mode-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75em;
+  color: #555;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.search-mode-toggle input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.search-mode-toggle span {
+  cursor: pointer;
+}
+
+/* Global search results panel (inline, not modal) */
+.search-results-panel {
+  margin-bottom: 12px;
+  background-color: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  max-height: 60vh;
+  overflow-y: auto;
 }
 
 .search-results {
@@ -463,14 +438,6 @@ h1.breadcrumbs {
   color: #7f8c8d;
   padding: 20px;
   font-size: 0.85em;
-}
-
-.search-modal-footer {
-  padding: 6px 12px;
-  text-align: center;
-  font-size: 0.7em;
-  color: #95a5a6;
-  border-top: 1px solid #e0e0e0;
 }
 
 mark {

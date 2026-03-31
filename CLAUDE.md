@@ -30,9 +30,12 @@ The build script (`build-metabrowse.sh`) is run from a content directory and inv
 8. **Inline comments** - add `# comment text` to any link or group for context
    - Displayed as small gray italic text below the link/group
    - Plain text only, no markup interpretation
-9. **Search** - two complementary search modes:
-   - **In-page filter**: type in the filter box (or press `/`) to instantly hide non-matching links, groups, and child buttons on the current page
-   - **Global cross-page search**: press `Ctrl+K` (or click "Global") to search across all pages using a build-time JSON index (`docs/search-index.json`)
+9. **Unified search** - single search box with local/global mode toggle:
+   - **Global mode** (default): searches across all pages using build-time JSON index, results shown in dropdown panel below search box
+   - **Local mode**: filters current page content (links, groups, child buttons) in-place
+   - Toggle between modes with checkbox, or use keyboard shortcuts: `/` for local, `Ctrl+K` for global
+   - Search term and mode persist across page navigations via localStorage
+   - Clear button (×) appears when search has content
 
 ## Build Commands
 
@@ -47,6 +50,11 @@ cd /path/to/my-metabrowse-links
 ```bash
 cd /path/to/my-metabrowse-links
 /path/to/metabrowse/build-metabrowse.sh
+
+# Preview locally (optional - docs/ is gitignored, only for local testing)
+/path/to/metabrowse/serve-metabrowse.sh
+# Visit http://localhost:3000 to preview
+# Press Ctrl+C to stop server
 ```
 
 **Developer workflow** (testing changes to build pipeline):
@@ -54,6 +62,9 @@ cd /path/to/my-metabrowse-links
 # From a content directory
 cd /path/to/test-content
 ~/.local/bin/python3 /path/to/metabrowse/build.py
+
+# Preview locally
+/path/to/metabrowse/serve-metabrowse.sh -p 9000
 ```
 
 **Dependencies:**
@@ -64,6 +75,7 @@ cd /path/to/test-content
 **Environment variables:**
 - `METABROWSE_CODE_DIR`: Override location of code repository (default: directory containing build-metabrowse.sh)
 - `METABROWSE_PYTHON`: Override Python interpreter (default: `~/.local/bin/python3`)
+- `METABROWSE_PORT`: Port for local web server (default: 3000, used by serve-metabrowse.sh)
 
 Note: This project uses `~/.local/bin/python3` as the default Python interpreter path.
 
@@ -153,6 +165,7 @@ metabrowse/
 ├── generator.py          # Stage 3: Render templates
 ├── build.py              # Main orchestrator
 ├── build-metabrowse.sh   # User-facing build wrapper
+├── serve-metabrowse.sh   # Local preview server for testing
 ├── metabrowse-wiz.sh     # Content wizard for creating directories
 └── requirements.txt      # Python dependencies
 ```

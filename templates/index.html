@@ -26,24 +26,20 @@
       {% endif %}
     </div>
 
-    <!-- Search bar -->
+    <!-- Unified search bar -->
     <div class="search-bar" role="search">
       <span class="search-icon">&#x1F50D;</span>
-      <input type="text" id="page-filter" class="search-input" placeholder="Filter this page...  ( / )" aria-label="Filter links on this page">
-      <button type="button" id="global-search-btn" class="global-search-btn" title="Search all pages (Ctrl+K)">&#x1F310; Global</button>
+      <input type="text" id="unified-search" class="search-input" placeholder="/ (this page) | ^K (global)" aria-label="Search">
+      <button type="button" id="clear-search-btn" class="clear-search-btn" title="Clear search" style="display:none">&times;</button>
+      <label class="search-mode-toggle">
+        <input type="checkbox" id="global-mode-checkbox" checked>
+        <span>Global</span>
+      </label>
     </div>
 
-    <!-- Global search modal -->
-    <div id="global-search-overlay" class="search-overlay" role="dialog" aria-modal="true" aria-label="Search all pages" style="display:none">
-      <div class="search-modal">
-        <div class="search-modal-header">
-          <span class="search-icon">&#x1F50D;</span>
-          <input type="text" id="global-search-input" class="search-input search-modal-input" placeholder="Search all pages..." aria-label="Search all pages">
-          <button type="button" id="global-search-close" class="search-modal-close" title="Close (Esc)">&times;</button>
-        </div>
-        <div id="global-search-results" class="search-results" aria-live="polite"></div>
-        <div class="search-modal-footer">Press Esc to close</div>
-      </div>
+    <!-- Global search results panel -->
+    <div id="search-results-panel" class="search-results-panel" style="display:none">
+      <div id="search-results-content" class="search-results" aria-live="polite"></div>
     </div>
 
     {% if children %}
@@ -243,28 +239,87 @@
 })();
   </script>
   <script>
-// In-page filter
+// Unified search with local/global mode toggle
 (function() {
   'use strict';
-  var input = document.getElementById('page-filter');
-  if (!input) return;
 
-  // Collect all filterable items once
+  // DOM elements
+  var input = document.getElementById('unified-search');
+  var checkbox = document.getElementById('global-mode-checkbox');
+  var clearBtn = document.getElementById('clear-search-btn');
+  var resultsPanel = document.getElementById('search-results-panel');
+  var resultsContent = document.getElementById('search-results-content');
+  if (!input || !checkbox) return;
+
+  // Local storage keys
+  var STORAGE_MODE = 'metabrowse-search-mode';
+  var STORAGE_TERM = 'metabrowse-search-term';
+
+  // Global search state
+  var searchIndex = null;
+  var indexUrl = document.body.getAttribute('data-search-index') || 'search-index.json';
+
+  // Local filter state - collect all filterable items once
   var childLinks = document.querySelectorAll('.children-nav .child-link-wrap');
   var ungroupedItems = document.querySelectorAll('.links > li');
   var groups = document.querySelectorAll('.group');
   var ungroupedContainer = document.querySelector('.links');
-
-  // Track original open state of groups
   var originalOpen = [];
   groups.forEach(function(g) { originalOpen.push(g.open); });
 
+  // Update placeholder based on mode
+  function updatePlaceholder() {
+    input.placeholder = '/ (this page) | ^K (global)';
+  }
+
+  // Save state to localStorage
+  function saveState() {
+    try {
+      localStorage.setItem(STORAGE_MODE, checkbox.checked ? 'global' : 'local');
+      localStorage.setItem(STORAGE_TERM, input.value);
+    } catch (e) {}
+  }
+
+  // Restore state from localStorage
+  function restoreState() {
+    try {
+      var savedMode = localStorage.getItem(STORAGE_MODE);
+      var savedTerm = localStorage.getItem(STORAGE_TERM);
+
+      if (savedMode === 'local') {
+        checkbox.checked = false;
+      }
+      if (savedTerm) {
+        input.value = savedTerm;
+      }
+
+      updatePlaceholder();
+      performSearch();
+    } catch (e) {}
+  }
+
+  // Toggle clear button visibility
+  function updateClearButton() {
+    clearBtn.style.display = input.value ? '' : 'none';
+  }
+
+  // Clear search
+  function clearSearch() {
+    input.value = '';
+    saveState();
+    updateClearButton();
+    performSearch();
+    input.focus();
+  }
+
+  // LOCAL SEARCH: Filter current page content
   function getSearchText(el) {
     return (el.textContent || '').toLowerCase();
   }
 
-  function filterPage() {
-    var query = input.value.toLowerCase().trim();
+  function filterCurrentPage(query) {
+    // Hide global results panel
+    if (resultsPanel) resultsPanel.style.display = 'none';
 
     if (!query) {
       // Restore everything
@@ -279,19 +334,20 @@
       return;
     }
 
+    var lowerQuery = query.toLowerCase();
+
     // Filter child nav buttons
     childLinks.forEach(function(el) {
-      el.style.display = getSearchText(el).indexOf(query) >= 0 ? '' : 'none';
+      el.style.display = getSearchText(el).indexOf(lowerQuery) >= 0 ? '' : 'none';
     });
 
     // Filter ungrouped links
     var anyUngrouped = false;
     ungroupedItems.forEach(function(li) {
-      var match = getSearchText(li).indexOf(query) >= 0;
-      // Also check href attributes
+      var match = getSearchText(li).indexOf(lowerQuery) >= 0;
       if (!match) {
         var a = li.querySelector('a');
-        if (a && a.href && a.href.toLowerCase().indexOf(query) >= 0) match = true;
+        if (a && a.href && a.href.toLowerCase().indexOf(lowerQuery) >= 0) match = true;
       }
       li.style.display = match ? '' : 'none';
       if (match) anyUngrouped = true;
@@ -303,14 +359,14 @@
     // Filter groups
     groups.forEach(function(g) {
       var summaryText = g.querySelector('summary') ? getSearchText(g.querySelector('summary')) : '';
-      var groupMatch = summaryText.indexOf(query) >= 0;
+      var groupMatch = summaryText.indexOf(lowerQuery) >= 0;
       var anyChildMatch = false;
 
       g.querySelectorAll('.group-links > li').forEach(function(li) {
-        var match = getSearchText(li).indexOf(query) >= 0;
+        var match = getSearchText(li).indexOf(lowerQuery) >= 0;
         if (!match) {
           var a = li.querySelector('a');
-          if (a && a.href && a.href.toLowerCase().indexOf(query) >= 0) match = true;
+          if (a && a.href && a.href.toLowerCase().indexOf(lowerQuery) >= 0) match = true;
         }
         li.style.display = (match || groupMatch) ? '' : 'none';
         if (match) anyChildMatch = true;
@@ -318,75 +374,14 @@
 
       if (groupMatch || anyChildMatch) {
         g.style.display = '';
-        g.open = true; // Auto-expand matching groups
+        g.open = true;
       } else {
         g.style.display = 'none';
       }
     });
   }
 
-  input.addEventListener('input', filterPage);
-
-  // "/" keyboard shortcut to focus filter
-  document.addEventListener('keydown', function(e) {
-    if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-      var tag = (document.activeElement || {}).tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-      e.preventDefault();
-      input.focus();
-      input.select();
-    }
-  });
-
-  // Esc clears filter when focused
-  input.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') {
-      input.value = '';
-      filterPage();
-      input.blur();
-    }
-  });
-})();
-  </script>
-  <script>
-// Global cross-page search
-(function() {
-  'use strict';
-  var overlay = document.getElementById('global-search-overlay');
-  var input = document.getElementById('global-search-input');
-  var results = document.getElementById('global-search-results');
-  var closeBtn = document.getElementById('global-search-close');
-  var openBtn = document.getElementById('global-search-btn');
-  if (!overlay || !input || !results) return;
-
-  var searchIndex = null;
-  var indexUrl = document.body.getAttribute('data-search-index') || 'search-index.json';
-
-  function loadIndex(callback) {
-    if (searchIndex) { callback(); return; }
-    fetch(indexUrl).then(function(r) { return r.json(); }).then(function(data) {
-      searchIndex = data;
-      callback();
-    }).catch(function() {
-      results.innerHTML = '<div class="search-no-results">Could not load search index.</div>';
-    });
-  }
-
-  function openModal() {
-    overlay.style.display = 'flex';
-    input.value = '';
-    results.innerHTML = '<div class="search-no-results">Type to search across all pages</div>';
-    loadIndex(function() {
-      input.focus();
-    });
-  }
-
-  function closeModal() {
-    overlay.style.display = 'none';
-    input.value = '';
-    results.innerHTML = '';
-  }
-
+  // GLOBAL SEARCH: Search across all pages
   function escapeHtml(str) {
     var div = document.createElement('div');
     div.appendChild(document.createTextNode(str));
@@ -403,13 +398,42 @@
       escapeHtml(text.substring(idx + query.length));
   }
 
-  function search() {
-    var query = input.value.trim().toLowerCase();
-    if (!query || !searchIndex) {
-      results.innerHTML = '<div class="search-no-results">Type to search across all pages</div>';
+  function loadIndex(callback) {
+    if (searchIndex) { callback(); return; }
+    fetch(indexUrl).then(function(r) { return r.json(); }).then(function(data) {
+      searchIndex = data;
+      callback();
+    }).catch(function() {
+      if (resultsContent) {
+        resultsContent.innerHTML = '<div class="search-no-results">Could not load search index.</div>';
+      }
+    });
+  }
+
+  function showGlobalResults(query) {
+    // Restore all local page elements first
+    childLinks.forEach(function(el) { el.style.display = ''; });
+    ungroupedItems.forEach(function(el) { el.style.display = ''; });
+    if (ungroupedContainer) ungroupedContainer.style.display = '';
+    groups.forEach(function(g, i) {
+      g.style.display = '';
+      g.open = originalOpen[i];
+      g.querySelectorAll('.group-links > li').forEach(function(li) { li.style.display = ''; });
+    });
+
+    if (!query) {
+      if (resultsPanel) resultsPanel.style.display = 'none';
       return;
     }
 
+    if (!searchIndex) {
+      loadIndex(function() { showGlobalResults(query); });
+      return;
+    }
+
+    if (resultsPanel) resultsPanel.style.display = '';
+
+    var lowerQuery = query.toLowerCase();
     var matches = [];
     var MAX_RESULTS = 50;
 
@@ -417,20 +441,20 @@
       var page = searchIndex[i];
 
       // Match page title / breadcrumbs
-      if (page.breadcrumbs.toLowerCase().indexOf(query) >= 0) {
+      if (page.breadcrumbs.toLowerCase().indexOf(lowerQuery) >= 0) {
         matches.push({ page: page, type: 'page', text: page.breadcrumbs });
       }
 
       // Match children
       for (var c = 0; c < (page.children || []).length; c++) {
-        if (page.children[c].toLowerCase().indexOf(query) >= 0) {
+        if (page.children[c].toLowerCase().indexOf(lowerQuery) >= 0) {
           matches.push({ page: page, type: 'child', text: page.children[c] });
         }
       }
 
       // Match group names
       for (var g = 0; g < (page.groups || []).length; g++) {
-        if (page.groups[g].toLowerCase().indexOf(query) >= 0) {
+        if (page.groups[g].toLowerCase().indexOf(lowerQuery) >= 0) {
           matches.push({ page: page, type: 'group', text: page.groups[g] });
         }
       }
@@ -441,16 +465,14 @@
         var matched = false;
         var matchText = link.text;
 
-        if (link.text.toLowerCase().indexOf(query) >= 0) {
+        if (link.text.toLowerCase().indexOf(lowerQuery) >= 0) {
           matched = true;
-        } else if (link.url.toLowerCase().indexOf(query) >= 0) {
+        } else if (link.url.toLowerCase().indexOf(lowerQuery) >= 0) {
           matched = true;
           matchText = link.text + ' — ' + link.url;
-        } else if (link.comment && link.comment.toLowerCase().indexOf(query) >= 0) {
+        } else if (link.comment && link.comment.toLowerCase().indexOf(lowerQuery) >= 0) {
           matched = true;
           matchText = link.text + ' — ' + link.comment;
-        } else if (link.group && link.group.toLowerCase().indexOf(query) >= 0) {
-          // Already matched via group names above
         }
 
         if (matched) {
@@ -462,7 +484,7 @@
     }
 
     if (matches.length === 0) {
-      results.innerHTML = '<div class="search-no-results">No results found</div>';
+      resultsContent.innerHTML = '<div class="search-no-results">No results found</div>';
       return;
     }
 
@@ -483,50 +505,94 @@
       var group = byPage[pageOrder[p]];
       html += '<div class="search-result-page">';
       html += '<a href="' + escapeHtml(group.page.path) + '" class="search-result-page-link" target="_self">' +
-              highlightMatch(group.page.breadcrumbs, input.value.trim()) + '</a>';
+              highlightMatch(group.page.breadcrumbs, query) + '</a>';
       for (var r = 0; r < group.items.length; r++) {
         var item = group.items[r];
         var typeLabel = item.type === 'link' ? '→' : item.type === 'group' ? '▸' : item.type === 'child' ? '◆' : '📄';
         html += '<div class="search-result-item">';
         html += '<span class="search-result-type">' + typeLabel + '</span> ';
         html += '<a href="' + escapeHtml(group.page.path) + '" class="search-result-link" target="_self">' +
-                highlightMatch(item.text, input.value.trim()) + '</a>';
+                highlightMatch(item.text, query) + '</a>';
         html += '</div>';
       }
       html += '</div>';
     }
 
-    results.innerHTML = html;
+    resultsContent.innerHTML = html;
   }
 
+  // Main search coordinator
+  function performSearch() {
+    var query = input.value.trim();
+    updateClearButton();
+
+    if (checkbox.checked) {
+      showGlobalResults(query);
+    } else {
+      filterCurrentPage(query);
+    }
+  }
+
+  // Event listeners
   var debounceTimer;
   input.addEventListener('input', function() {
     clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(search, 150);
+    debounceTimer = setTimeout(function() {
+      saveState();
+      performSearch();
+    }, 150);
   });
 
-  openBtn.addEventListener('click', function(e) {
-    e.preventDefault();
-    loadIndex(openModal);
+  checkbox.addEventListener('change', function() {
+    saveState();
+    updatePlaceholder();
+    performSearch();
   });
 
-  closeBtn.addEventListener('click', closeModal);
+  clearBtn.addEventListener('click', clearSearch);
 
-  overlay.addEventListener('click', function(e) {
-    if (e.target === overlay) closeModal();
+  // "/" keyboard shortcut - switch to local mode and focus search
+  document.addEventListener('keydown', function(e) {
+    if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      var tag = (document.activeElement || {}).tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      e.preventDefault();
+      checkbox.checked = false;
+      updatePlaceholder();
+      saveState();
+      performSearch();
+      input.focus();
+      input.select();
+    }
   });
 
-  input.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') closeModal();
-  });
-
-  // Ctrl+K / Cmd+K keyboard shortcut
+  // Ctrl+K / Cmd+K - toggle global mode and focus search
   document.addEventListener('keydown', function(e) {
     if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
       e.preventDefault();
-      loadIndex(openModal);
+      checkbox.checked = !checkbox.checked;
+      updatePlaceholder();
+      saveState();
+      performSearch();
+      input.focus();
+      input.select();
     }
   });
+
+  // Click outside results panel to hide it
+  document.addEventListener('click', function(e) {
+    if (resultsPanel &&
+        resultsPanel.style.display !== 'none' &&
+        !resultsPanel.contains(e.target) &&
+        !input.contains(e.target) &&
+        !checkbox.contains(e.target)) {
+      // Don't hide, just let it stay
+    }
+  });
+
+  // Initialize
+  restoreState();
+  updateClearButton();
 })();
   </script>
 </body>
