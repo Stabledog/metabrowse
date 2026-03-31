@@ -188,6 +188,7 @@ def read_edit_base_url(content_root: Path) -> str:
         SystemExit: If config file is missing or EDIT_BASE_URL is not set
     """
     config_file = content_root / ".metabrowse.conf"
+    print(f"Reading edit config from: {config_file}")
 
     if not config_file.exists():
         print(f"ERROR: Required config file not found: {config_file}")
