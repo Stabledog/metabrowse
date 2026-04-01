@@ -13,45 +13,48 @@
 </head>
 <body data-search-index="{{ search_index_path }}">
   <div class="container">
-    <!-- Breadcrumb navigation with edit link -->
-    <div class="header-bar">
-      <h1 class="breadcrumbs">
-        {% for crumb in breadcrumbs %}
-        <a href="{{ crumb.url }}" class="breadcrumb-link" target="_self">{{ crumb.name }}</a>
-        <span class="breadcrumb-separator">/</span>
+    <div class="fixed-header">
+      <!-- Breadcrumb navigation with edit link -->
+      <div class="header-bar">
+        <h1 class="breadcrumbs">
+          {% for crumb in breadcrumbs %}
+          <a href="{{ crumb.url }}" class="breadcrumb-link" target="_self">{{ crumb.name }}</a>
+          <span class="breadcrumb-separator">/</span>
+          {% endfor %}
+          <span class="breadcrumb-current">{{ current_name }}</span>
+        </h1>
+        <a href="{{ edit_url }}" class="edit-link" target="_blank" rel="noopener noreferrer">Edit</a>
+      </div>
+
+      <!-- Unified search bar -->
+      <div class="search-bar" role="search">
+        <span class="search-icon">&#x1F50D;</span>
+        <input type="text" id="unified-search" class="search-input" placeholder="/ (this page) | ^K (global)" aria-label="Search">
+        <button type="button" id="clear-search-btn" class="clear-search-btn" title="Clear search" style="display:none">&times;</button>
+        <label class="search-mode-toggle">
+          <input type="checkbox" id="global-mode-checkbox" checked>
+          <span>Global</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="scrollable-content">
+      <!-- Global search results panel -->
+      <div id="search-results-panel" class="search-results-panel" style="display:none">
+        <div id="search-results-content" class="search-results" aria-live="polite"></div>
+      </div>
+
+      {% if children %}
+      <!-- Child directories navigation -->
+      <div class="children-nav">
+        {% for child in children %}
+        <span class="child-link-wrap">
+          <a href="{{ child.url }}" class="child-link" target="_self">{{ child.name }}</a>
+          <button class="copy-btn child-copy-btn" data-url="{{ child.url }}" title="Copy URL">&#x1F4CB;</button>
+        </span>
         {% endfor %}
-        <span class="breadcrumb-current">{{ current_name }}</span>
-      </h1>
-      <a href="{{ edit_url }}" class="edit-link" target="_blank" rel="noopener noreferrer">Edit</a>
-    </div>
-
-    <!-- Unified search bar -->
-    <div class="search-bar" role="search">
-      <span class="search-icon">&#x1F50D;</span>
-      <input type="text" id="unified-search" class="search-input" placeholder="/ (this page) | ^K (global)" aria-label="Search">
-      <button type="button" id="clear-search-btn" class="clear-search-btn" title="Clear search" style="display:none">&times;</button>
-      <label class="search-mode-toggle">
-        <input type="checkbox" id="global-mode-checkbox" checked>
-        <span>Global</span>
-      </label>
-    </div>
-
-    <!-- Global search results panel -->
-    <div id="search-results-panel" class="search-results-panel" style="display:none">
-      <div id="search-results-content" class="search-results" aria-live="polite"></div>
-    </div>
-
-    {% if children %}
-    <!-- Child directories navigation -->
-    <div class="children-nav">
-      {% for child in children %}
-      <span class="child-link-wrap">
-        <a href="{{ child.url }}" class="child-link" target="_self">{{ child.name }}</a>
-        <button class="copy-btn child-copy-btn" data-url="{{ child.url }}" title="Copy URL">&#x1F4CB;</button>
-      </span>
-      {% endfor %}
-    </div>
-    {% endif %}
+      </div>
+      {% endif %}
 
     {# Macro for rendering a single link <li> #}
     {% macro render_link(link) %}
@@ -109,6 +112,7 @@
       {{ render_subitem(item) }}
       {% endif %}
     {% endfor %}
+    </div>
   </div>
   <script>
     document.addEventListener('click', function(e) {
