@@ -651,6 +651,16 @@
     }
   });
 
+  // "r" keyboard shortcut - reload page
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'r' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      var tag = (document.activeElement || {}).tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      e.preventDefault();
+      location.reload();
+    }
+  });
+
   // "c" keyboard shortcut - toggle collapse/restore all sections
   var savedStates = [];
   var allCollapsed = false;
@@ -700,6 +710,8 @@
     <kbd>Ctrl+K</kbd> Search all
     <span class="shortcut-sep">|</span>
     <kbd>c</kbd> Collapse/restore
+    <span class="shortcut-sep">|</span>
+    <kbd>r</kbd> Reload
   </footer>
 </body>
 </html>
