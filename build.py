@@ -6,6 +6,7 @@ Walks the text/ directory tree, processes each README.md file,
 and generates corresponding index.html files in the docs/ directory.
 """
 
+import hashlib
 import json
 import time
 from pathlib import Path
@@ -384,6 +385,7 @@ def build():
 
         # Generate editor URL (points to editor SPA with query params)
         edit_url = calculate_editor_url(output_file, docs_root, repo_info, readme_path, text_root)
+        edit_target = hashlib.sha256(edit_url.encode('utf-8')).hexdigest()[:8]
 
         # Calculate relative path for this page (used in search index)
         try:
@@ -399,7 +401,7 @@ def build():
         search_index_path = "../" * page_depth + "search-index.json"
 
         # Generate HTML
-        generator.generate_html(html_doc, output_file, css_path, favicon_path, breadcrumbs, current_name, children, edit_url, search_index_path)
+        generator.generate_html(html_doc, output_file, css_path, favicon_path, breadcrumbs, current_name, children, edit_url, edit_target, search_index_path)
 
         print(f"  -> Generated: {output_file}")
 
