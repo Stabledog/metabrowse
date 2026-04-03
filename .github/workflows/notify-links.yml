@@ -1,0 +1,17 @@
+name: Notify metabrowse-links
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger metabrowse-links rebuild
+        run: |
+          curl -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.LINKS_DISPATCH_TOKEN }}" \
+            https://api.github.com/repos/Stabledog/metabrowse-links/dispatches \
+            -d '{"event_type": "metabrowse-updated"}'
