@@ -387,6 +387,9 @@ def build():
         edit_url = calculate_editor_url(output_file, docs_root, repo_info, readme_path, text_root)
         edit_target = hashlib.sha256(edit_url.encode('utf-8')).hexdigest()[:8]
 
+        # Generate GitHub web editor URL (for mobile / fallback)
+        github_edit_url = generate_edit_url(readme_path, text_root, edit_base_url)
+
         # Calculate relative path for this page (used in search index)
         try:
             page_rel = str(output_file.relative_to(docs_root)).replace('\\', '/')
@@ -402,7 +405,7 @@ def build():
         root_path = "../" * page_depth
 
         # Generate HTML
-        generator.generate_html(html_doc, output_file, css_path, favicon_path, breadcrumbs, current_name, children, edit_url, edit_target, search_index_path, root_path)
+        generator.generate_html(html_doc, output_file, css_path, favicon_path, breadcrumbs, current_name, children, edit_url, edit_target, search_index_path, root_path, github_edit_url)
 
         print(f"  -> Generated: {output_file}")
 

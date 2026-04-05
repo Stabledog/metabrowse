@@ -21,7 +21,7 @@ class HTMLGenerator:
         self.output_dir = output_dir
         self.env = Environment(loader=FileSystemLoader(str(template_dir)))
 
-    def generate_html(self, html_doc: HTMLDocument, output_path: Path, css_relative_path: str, favicon_relative_path: str, breadcrumbs: list, current_name: str, children: list = None, edit_url: str = "", edit_target: str = "_blank", search_index_path: str = "search-index.json", root_path: str = ""):
+    def generate_html(self, html_doc: HTMLDocument, output_path: Path, css_relative_path: str, favicon_relative_path: str, breadcrumbs: list, current_name: str, children: list = None, edit_url: str = "", edit_target: str = "_blank", search_index_path: str = "search-index.json", root_path: str = "", github_edit_url: str = ""):
         """
         Generate an HTML file from an HTMLDocument.
 
@@ -54,6 +54,7 @@ class HTMLGenerator:
             edit_target=edit_target,
             search_index_path=search_index_path,
             root_path=root_path,
+            github_edit_url=github_edit_url,
         )
 
         # Ensure the output directory exists

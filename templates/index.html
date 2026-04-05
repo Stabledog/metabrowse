@@ -28,7 +28,9 @@
           {% endfor %}
           <span class="breadcrumb-current">{{ current_name }}</span>
         </h1>
-        <a href="{{ edit_url }}" class="edit-link" target="{{ edit_target }}">Edit</a>
+        <a href="{{ edit_url }}" class="edit-link" target="{{ edit_target }}"
+           data-veditor-url="{{ edit_url }}" data-veditor-target="{{ edit_target }}"
+           data-github-url="{{ github_edit_url }}">Edit</a>
       </div>
 
       <!-- Unified search bar -->
@@ -717,6 +719,21 @@
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('{{ root_path }}sw.js');
     }
+  </script>
+  <script>
+  // On touch devices, swap Edit link to open GitHub's web editor instead of veditor
+  (function() {
+    var isMobile = window.matchMedia('(pointer: coarse)').matches;
+    var editLink = document.querySelector('.edit-link');
+    if (!editLink) return;
+    if (isMobile) {
+      var ghUrl = editLink.getAttribute('data-github-url');
+      if (ghUrl) {
+        editLink.href = ghUrl;
+        editLink.target = '_blank';
+      }
+    }
+  })();
   </script>
   <footer class="shortcut-help">
     <kbd>e</kbd> Edit
