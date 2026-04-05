@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#3b5998"/>
+  <!-- Bookmark shape -->
+  <path d="M160 96 h192 a24 24 0 0 1 24 24 v320 l-120 -80 l-120 80 V120 a24 24 0 0 1 24 -24z" fill="#f5f5f5"/>
+  <!-- Link lines -->
+  <rect x="192" y="168" width="128" height="12" rx="6" fill="#3b5998"/>
+  <rect x="192" y="208" width="104" height="12" rx="6" fill="#8baad6"/>
+  <rect x="192" y="248" width="116" height="12" rx="6" fill="#8baad6"/>
+  <rect x="192" y="288" width="88" height="12" rx="6" fill="#8baad6"/>
+</svg>

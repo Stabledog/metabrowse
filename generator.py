@@ -21,7 +21,7 @@ class HTMLGenerator:
         self.output_dir = output_dir
         self.env = Environment(loader=FileSystemLoader(str(template_dir)))
 
-    def generate_html(self, html_doc: HTMLDocument, output_path: Path, css_relative_path: str, favicon_relative_path: str, breadcrumbs: list, current_name: str, children: list = None, edit_url: str = "", edit_target: str = "_blank", search_index_path: str = "search-index.json"):
+    def generate_html(self, html_doc: HTMLDocument, output_path: Path, css_relative_path: str, favicon_relative_path: str, breadcrumbs: list, current_name: str, children: list = None, edit_url: str = "", edit_target: str = "_blank", search_index_path: str = "search-index.json", root_path: str = ""):
         """
         Generate an HTML file from an HTMLDocument.
 
@@ -52,7 +52,8 @@ class HTMLGenerator:
             children=children,
             edit_url=edit_url,
             edit_target=edit_target,
-            search_index_path=search_index_path
+            search_index_path=search_index_path,
+            root_path=root_path,
         )
 
         # Ensure the output directory exists
@@ -98,6 +99,12 @@ class HTMLGenerator:
         if editor_dest.exists():
             shutil.rmtree(editor_dest)
         shutil.copytree(editor_dist, editor_dest)
+
+        # Copy PWA files (manifest, service worker, icons)
+        for pwa_file in ['manifest.json', 'sw.js', 'icon.svg', 'icon-192.png', 'icon-512.png']:
+            source = self.template_dir / pwa_file
+            if source.exists():
+                shutil.copy2(source, self.output_dir / pwa_file)
 
         # Create .nojekyll file to disable Jekyll on GitHub Pages
         nojekyll_file = self.output_dir / '.nojekyll'

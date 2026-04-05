@@ -3,12 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#3b5998">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>{{ title }}</title>
+  <link rel="manifest" href="{{ root_path }}manifest.json">
   <link rel="icon" type="image/x-icon" href="{{ favicon_ico_path }}">
   <link rel="icon" type="image/png" href="{{ favicon_path }}">
+  <link rel="apple-touch-icon" href="{{ root_path }}icon-192.png">
   <link rel="stylesheet" href="{{ css_path }}">
 </head>
 <body data-search-index="{{ search_index_path }}">
@@ -707,6 +712,11 @@
   restoreState();
   updateClearButton();
 })();
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('{{ root_path }}sw.js');
+    }
   </script>
   <footer class="shortcut-help">
     <kbd>e</kbd> Edit

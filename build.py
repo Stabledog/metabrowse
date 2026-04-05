@@ -399,9 +399,10 @@ def build():
         except ValueError:
             page_depth = 0
         search_index_path = "../" * page_depth + "search-index.json"
+        root_path = "../" * page_depth
 
         # Generate HTML
-        generator.generate_html(html_doc, output_file, css_path, favicon_path, breadcrumbs, current_name, children, edit_url, edit_target, search_index_path)
+        generator.generate_html(html_doc, output_file, css_path, favicon_path, breadcrumbs, current_name, children, edit_url, edit_target, search_index_path, root_path)
 
         print(f"  -> Generated: {output_file}")
 
