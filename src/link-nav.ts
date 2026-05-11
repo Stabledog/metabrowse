@@ -12,21 +12,21 @@ export function initLinkNav(container: HTMLElement, signal: AbortSignal): void {
   let zone: 'children' | 'links' = 'links';
   let childIndex = 0;
 
-  function getVisibleLinks(): HTMLLIElement[] {
-    const all = container.querySelectorAll<HTMLLIElement>(
-      '.links > li, .group-links > li, .sublevel-links > li',
+  function getVisibleLinks(): HTMLElement[] {
+    const all = container.querySelectorAll<HTMLElement>(
+      '.links > li, .group-links > li, .sublevel-links > li, .search-result-item',
     );
-    const visible: HTMLLIElement[] = [];
-    for (const li of all) {
-      if (li.style.display === 'none') continue;
-      if (!li.querySelector('a')) continue;
+    const visible: HTMLElement[] = [];
+    for (const item of all) {
+      if (item.style.display === 'none') continue;
+      if (!item.querySelector('a')) continue;
       let hidden = false;
-      let el: HTMLElement | null = li.parentElement;
+      let el: HTMLElement | null = item.parentElement;
       while (el && el !== container) {
         if (el.style.display === 'none') { hidden = true; break; }
         el = el.parentElement;
       }
-      if (!hidden) visible.push(li);
+      if (!hidden) visible.push(item);
     }
     return visible;
   }
@@ -49,13 +49,13 @@ export function initLinkNav(container: HTMLElement, signal: AbortSignal): void {
     getChildrenNav()?.classList.remove(CHILDREN_ACTIVE_CLASS);
   }
 
-  function selectLink(links: HTMLLIElement[], index: number): void {
+  function selectLink(links: HTMLElement[], index: number): void {
     clearChildSelection();
     container.querySelector(`.${SELECTED_CLASS}`)?.classList.remove(SELECTED_CLASS);
     currentIndex = index;
-    const li = links[index];
-    li.classList.add(SELECTED_CLASS);
-    li.scrollIntoView({ block: 'nearest' });
+    const item = links[index];
+    item.classList.add(SELECTED_CLASS);
+    item.scrollIntoView({ block: 'nearest' });
     zone = 'links';
   }
 
@@ -118,7 +118,7 @@ export function initLinkNav(container: HTMLElement, signal: AbortSignal): void {
       const links = getVisibleLinks();
       if (links.length === 0) return;
 
-      const selectedEl = container.querySelector<HTMLLIElement>(`.${SELECTED_CLASS}`);
+      const selectedEl = container.querySelector<HTMLElement>(`.${SELECTED_CLASS}`);
       if (selectedEl) {
         currentIndex = links.indexOf(selectedEl);
         if (currentIndex === -1) currentIndex = 0;
@@ -146,7 +146,7 @@ export function initLinkNav(container: HTMLElement, signal: AbortSignal): void {
     }
 
     if (e.key === 'Enter') {
-      const selected = container.querySelector<HTMLLIElement>(`.${SELECTED_CLASS}`);
+      const selected = container.querySelector<HTMLElement>(`.${SELECTED_CLASS}`);
       if (!selected) return;
       const a = selected.querySelector<HTMLAnchorElement>('a');
       if (a) { e.preventDefault(); a.click(); }
