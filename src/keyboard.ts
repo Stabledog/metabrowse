@@ -87,6 +87,23 @@ export function initKeyboard(container: HTMLElement, opts: KeyboardOpts | undefi
       }
     }
 
+    // Ctrl+Alt+U — copy selected link URL to clipboard
+    if (e.key === 'u' && e.ctrlKey && e.altKey) {
+      e.preventDefault();
+      const selected = container.querySelector<HTMLElement>('.link-selected');
+      if (!selected) return;
+      const a = selected.querySelector<HTMLAnchorElement>('a');
+      if (!a) return;
+      navigator.clipboard.writeText(a.href).then(() => {
+        const btn = selected.querySelector<HTMLButtonElement>('.copy-btn');
+        if (btn) {
+          btn.textContent = '✅';
+          setTimeout(() => { btn.textContent = '📋'; }, 1500);
+        }
+      });
+      return;
+    }
+
     // "u" — navigate up to parent directory
     if (e.key === 'u' && !e.ctrlKey && !e.metaKey && !e.altKey) {
       if (isInputFocused()) return;
