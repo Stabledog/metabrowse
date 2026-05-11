@@ -263,35 +263,35 @@ export function renderPage(
   const headerActions = el('div', { class: 'header-actions' });
 
   const editHash = route.dirPath ? `#/edit/${route.dirPath}` : '#/edit/';
-  headerActions.appendChild(el('a', { href: editHash, class: 'edit-link icon-btn', title: 'Edit (e)' }, '✎'));
+  headerActions.appendChild(el('a', { href: editHash, class: 'edit-link icon-btn', title: 'Edit (e)', tabindex: '-1' }, '✎'));
 
-  const treeBtn = el('button', { class: 'tree-btn icon-btn', title: 'Tree (t)' }, '🌳');
+  const treeBtn = el('button', { class: 'tree-btn icon-btn', title: 'Tree (t)', tabindex: '-1' }, '🌳');
   treeBtn.addEventListener('click', () => config.onTreePanel?.());
   headerActions.appendChild(treeBtn);
 
-  const logsBtn = el('button', { class: 'logs-btn icon-btn', title: 'View logs' }, '📜');
+  const logsBtn = el('button', { class: 'logs-btn icon-btn', title: 'View logs', tabindex: '-1' }, '📜');
   logsBtn.addEventListener('click', () => document.body.appendChild(createLogViewer()));
   headerActions.appendChild(logsBtn);
 
-  const settingsBtn = el('button', { class: 'settings-btn icon-btn', title: 'Settings' }, '⚙');
+  const settingsBtn = el('button', { class: 'settings-btn icon-btn', title: 'Settings', tabindex: '-1' }, '⚙');
   settingsBtn.addEventListener('click', () => config.onSettings?.());
   headerActions.appendChild(settingsBtn);
 
-  const collapseBtn = el('button', { class: 'collapse-btn icon-btn', title: 'Collapse/restore (x)' }, '⊟');
+  const collapseBtn = el('button', { class: 'collapse-btn icon-btn', title: 'Collapse/restore (x)', tabindex: '-1' }, '⊟');
   collapseBtn.addEventListener('click', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'x', bubbles: true }));
   });
   headerActions.appendChild(collapseBtn);
 
-  const wsOpenBtn = el('button', { class: 'workspace-btn icon-btn', title: 'Open Workspace (w)', disabled: '' }, '🔗');
+  const wsOpenBtn = el('button', { class: 'workspace-btn icon-btn', title: 'Open Workspace (w)', disabled: '', tabindex: '-1' }, '🔗');
   wsOpenBtn.addEventListener('click', () => config.onOpenAll?.(container));
   headerActions.appendChild(wsOpenBtn);
 
-  const wsCaptureBtn = el('button', { class: 'workspace-btn icon-btn', title: 'Create Workspace (c)', disabled: '' }, '📷');
+  const wsCaptureBtn = el('button', { class: 'workspace-btn icon-btn', title: 'Create Workspace (c)', disabled: '', tabindex: '-1' }, '📷');
   wsCaptureBtn.addEventListener('click', () => config.onCapture?.());
   headerActions.appendChild(wsCaptureBtn);
 
-  const wsUpdateBtn = el('button', { class: 'workspace-btn icon-btn', title: 'Update Workspace', disabled: '' }, '🔄');
+  const wsUpdateBtn = el('button', { class: 'workspace-btn icon-btn', title: 'Update Workspace', disabled: '', tabindex: '-1' }, '🔄');
   wsUpdateBtn.addEventListener('click', () => config.onUpdate?.());
   headerActions.appendChild(wsUpdateBtn);
 
@@ -309,11 +309,11 @@ export function renderPage(
   }));
   const clearBtn = el('button', {
     type: 'button', id: 'clear-search-btn', class: 'clear-search-btn',
-    title: 'Clear search', style: 'display:none',
+    title: 'Clear search', style: 'display:none', tabindex: '-1',
   }, '\u00D7');
   searchBar.appendChild(clearBtn);
   const modeLabel = el('label', { class: 'search-mode-toggle' });
-  const modeCheckbox = el('input', { type: 'checkbox', id: 'global-mode-checkbox' });
+  const modeCheckbox = el('input', { type: 'checkbox', id: 'global-mode-checkbox', tabindex: '-1' });
   (modeCheckbox as HTMLInputElement).checked = true;
   modeLabel.appendChild(modeCheckbox);
   modeLabel.appendChild(el('span', {}, 'Global'));

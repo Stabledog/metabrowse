@@ -430,6 +430,17 @@ export function initSearch(container: HTMLElement, getSearchIndex: () => SearchE
   checkbox.addEventListener('change', onChange);
   if (clearBtn) clearBtn.addEventListener('click', onClear);
 
+  const onTab = (e: KeyboardEvent) => {
+    if (e.key !== 'Tab' || e.shiftKey) return;
+    const panel = document.getElementById('search-results-panel');
+    if (!panel || panel.style.display === 'none') return;
+    const firstLink = panel.querySelector<HTMLAnchorElement>('a');
+    if (!firstLink) return;
+    e.preventDefault();
+    firstLink.focus();
+  };
+  input.addEventListener('keydown', onTab);
+
   // Restore saved state
   try {
     const savedMode = localStorage.getItem(STORAGE_MODE);
@@ -443,6 +454,7 @@ export function initSearch(container: HTMLElement, getSearchIndex: () => SearchE
 
   cleanupFn = () => {
     input.removeEventListener('input', onInput);
+    input.removeEventListener('keydown', onTab);
     checkbox.removeEventListener('change', onChange);
     if (clearBtn) clearBtn.removeEventListener('click', onClear);
     clearTimeout(debounceTimer);
