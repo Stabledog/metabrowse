@@ -133,5 +133,6 @@ export async function showEditor(
     onQuit: handleQuit,
   }, {
     storagePrefix: 'metabrowse',
+    autoSaveMs: ved.getAutoSaveMs(),
   });
 }
