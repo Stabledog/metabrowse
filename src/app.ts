@@ -189,7 +189,7 @@ async function handleRoute(route: Route): Promise<void> {
 
   if (route.kind === 'edit') {
     logInfo(`Edit: Opening editor for ${route.contentPath}`);
-    await showEditor(app, host, token, owner, repo, route.dirPath);
+    await showEditor(app, host, token, owner, repo, route.dirPath, contentPaths);
     return;
   }
 

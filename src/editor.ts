@@ -4,6 +4,7 @@
 import { getFileContent, updateFileContent } from './github.ts';
 import { setVeditorVersion } from './status-bar.ts';
 import { escapeHtml, errorMessage } from './utils.ts';
+import type { VEditorCallbacks } from './veditor.d.ts';
 
 // veditor base URL — must be set via VITE_VEDITOR_BASE at build time.
 const VEDITOR_BASE = import.meta.env.VITE_VEDITOR_BASE as string | undefined;
@@ -34,6 +35,15 @@ async function loadVeditor(): Promise<typeof import('./veditor.d.ts')> {
   return veditor!;
 }
 
+function dirLabel(dirPath: string): string {
+  if (!dirPath) return 'home';
+  return dirPath.split('/').pop()!;
+}
+
+function contentPathFor(dirPath: string): string {
+  return dirPath ? `text/${dirPath}/README.md` : 'text/README.md';
+}
+
 /** Show the editor for a given content path. */
 export async function showEditor(
   target: HTMLElement,
@@ -42,8 +52,9 @@ export async function showEditor(
   owner: string,
   repo: string,
   dirPath: string,
+  contentPaths: string[],
 ): Promise<void> {
-  const contentPath = dirPath ? `text/${dirPath}/README.md` : 'text/README.md';
+  const contentPath = contentPathFor(dirPath);
 
   target.innerHTML = `<div class="editor-loading">Loading editor...</div>`;
 
@@ -70,9 +81,6 @@ export async function showEditor(
     return;
   }
 
-  let originalContent = content;
-  let fileSha = sha;
-
   // Render editor UI
   target.innerHTML = `
     <div class="editor-screen">
@@ -94,28 +102,12 @@ export async function showEditor(
     }
   }
 
-  async function handleSave(): Promise<void> {
-    const currentContent = ved.getEditorContent();
-    if (currentContent === originalContent) {
-      showStatus('No changes');
-      return;
-    }
-
-    const filename = contentPath.split('/').pop() ?? contentPath;
-    const message = `Update ${filename} via metabrowse editor`;
-
-    try {
-      showStatus('Saving...');
-      const newSha = await updateFileContent(
-        host, token, owner, repo, contentPath,
-        currentContent, fileSha, message,
-      );
-      originalContent = currentContent;
-      fileSha = newSha;
-      showStatus('Saved');
-    } catch (err) {
-      showStatus(`Save failed: ${errorMessage(err)}`, true);
-    }
+  function updateHeader(id: string): void {
+    const path = contentPathFor(id);
+    const el = target.querySelector<HTMLAnchorElement>('.filename');
+    if (!el) return;
+    el.textContent = path;
+    el.href = `https://${host}/${owner}/${repo}/blob/main/${path}`;
   }
 
   function handleQuit(): void {
@@ -123,11 +115,70 @@ export async function showEditor(
     location.hash = browseHash;
   }
 
-  ved.createEditor(document.getElementById('editor-container')!, originalContent, {
-    onSave: handleSave,
-    onQuit: handleQuit,
-  }, {
+  // --- Multi-buffer callbacks (shared across all buffers) ---
+
+  async function onListDocuments() {
+    return contentPaths.map(p => ({ id: p, label: dirLabel(p) }));
+  }
+
+  function makeBufferCallbacks(bufDirPath: string, initialSha: string, initialContent: string): VEditorCallbacks {
+    let fileSha = initialSha;
+    let originalContent = initialContent;
+    const bufContentPath = contentPathFor(bufDirPath);
+
+    return {
+      onSave: async () => {
+        const currentContent = ved.getEditorContent();
+        if (currentContent === originalContent) {
+          showStatus('No changes');
+          return;
+        }
+        const filename = bufContentPath.split('/').pop() ?? bufContentPath;
+        const message = `Update ${filename} via metabrowse editor`;
+        try {
+          showStatus('Saving...');
+          const newSha = await updateFileContent(
+            host, token, owner, repo, bufContentPath,
+            currentContent, fileSha, message,
+          );
+          originalContent = currentContent;
+          fileSha = newSha;
+          showStatus('Saved');
+        } catch (err) {
+          showStatus(`Save failed: ${errorMessage(err)}`, true);
+        }
+      },
+      onQuit: handleQuit,
+      onListDocuments,
+      onLoadDocument,
+      onBufferSwitch,
+    };
+  }
+
+  async function onLoadDocument(id: string) {
+    const path = contentPathFor(id);
+    const file = await getFileContent(host, token, owner, repo, path);
+    return {
+      content: file.content,
+      label: dirLabel(id),
+      callbacks: makeBufferCallbacks(id, file.sha, file.content),
+    };
+  }
+
+  function onBufferSwitch(id: string, _label: string): void {
+    updateHeader(id);
+    const hash = id ? `#/edit/${id}` : '#/edit';
+    history.replaceState(null, '', hash);
+  }
+
+  // --- Create editor with initial buffer ---
+
+  const initialCallbacks = makeBufferCallbacks(dirPath, sha, content);
+
+  ved.createEditor(document.getElementById('editor-container')!, content, initialCallbacks, {
     storagePrefix: 'metabrowse',
     autoSaveMs: ved.getAutoSaveMs(),
+    initialBufferId: dirPath,
+    initialBufferLabel: dirLabel(dirPath),
   });
 }
