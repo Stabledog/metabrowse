@@ -6,6 +6,7 @@ import { removeCachedContent } from './cache.ts';
 import { logInfo, logError } from './logging-client.ts';
 import type { Route } from './router.ts';
 import { pushModal, popModal } from './modal-stack.ts';
+import { showToast, errorMessage } from './utils.ts';
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -463,26 +464,6 @@ function showCaptureModal(tabs: Tab[]): Promise<string | null> {
   });
 }
 
-// ── Toast (reused from drop-handler pattern) ───────────────────────
-
-function showToast(message: string): void {
-  const existing = document.querySelector('.import-toast');
-  if (existing) existing.remove();
-
-  const el = document.createElement('div');
-  el.className = 'import-toast';
-  el.textContent = message;
-  document.body.appendChild(el);
-
-  el.offsetWidth; // eslint-disable-line @typescript-eslint/no-unused-expressions
-  el.classList.add('visible');
-
-  setTimeout(() => {
-    el.classList.remove('visible');
-    el.addEventListener('transitionend', () => el.remove());
-  }, 3000);
-}
-
 // ── Workspace actions ──────────────────────────────────────────────
 
 export interface WorkspaceConfig {
@@ -507,7 +488,7 @@ export async function handleOpenAll(container: HTMLElement, config: WorkspaceCon
     logInfo(`Workspace: Opened window ${result.windowId} with ${result.tabCount} tabs`);
     showToast(`Opened ${urls.length} tabs in new window`);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = errorMessage(err);
     logError(`Workspace: Failed to open: ${msg}`);
     showToast(`Failed to open workspace: ${msg}`);
   }
@@ -519,7 +500,7 @@ export async function handleCapture(config: WorkspaceConfig): Promise<void> {
   try {
     tabs = await queryTabs();
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = errorMessage(err);
     logError(`Workspace: Failed to query tabs: ${msg}`);
     showToast(`Failed to query tabs: ${msg}`);
     return;
@@ -549,7 +530,7 @@ export async function handleCapture(config: WorkspaceConfig): Promise<void> {
     location.hash = `#/${navPath}`;
     showToast(`Workspace "${name}" created`);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = errorMessage(err);
     logError(`Workspace: Failed to create: ${msg}`);
     showToast(`Failed to create workspace: ${msg}`);
   }
@@ -568,7 +549,7 @@ export async function handleUpdate(config: WorkspaceConfig): Promise<void> {
       try {
         tabs = await queryTabs();
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
+        const msg = errorMessage(err);
         logError(`Workspace: Failed to query tabs: ${msg}`);
         showToast(`Failed to query tabs: ${msg}`);
         return;
@@ -602,7 +583,7 @@ export async function handleUpdate(config: WorkspaceConfig): Promise<void> {
     showToast(`Workspace updated (${tabs.length} tabs)`);
     config.onSaved();
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = errorMessage(err);
     logError(`Workspace: Failed to update: ${msg}`);
     showToast(`Failed to update workspace: ${msg}`);
   }

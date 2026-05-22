@@ -3,6 +3,7 @@
 import { parseContent } from './parser.ts';
 import { transform } from './transformer.ts';
 import type { HTMLGroup, HTMLLinkGroup, HTMLSection } from './transformer.ts';
+import { escapeHtml, formatDirName, getChildDirs } from './utils.ts';
 
 // ── Search index types ──────────────────────────────────────────────
 
@@ -24,10 +25,6 @@ export interface SearchEntry {
 }
 
 // ── Build search index from content ─────────────────────────────────
-
-function formatDirName(name: string): string {
-  return name.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-}
 
 function buildBreadcrumbString(dirPath: string): string {
   if (!dirPath) return 'Metabrowse';
@@ -78,13 +75,6 @@ function extractNames(items: Array<HTMLSection | HTMLGroup | HTMLLinkGroup>, typ
     }
   }
   return names;
-}
-
-function getChildDirs(dirPath: string, contentPaths: string[]): string[] {
-  return contentPaths.filter(p => {
-    if (!dirPath) return p !== '' && !p.includes('/');
-    return p.startsWith(dirPath + '/') && !p.slice(dirPath.length + 1).includes('/');
-  });
 }
 
 /** Build a search index entry from a content path and its raw markdown. */
@@ -185,12 +175,6 @@ function filterSubgroup(sg: HTMLDivElement, query: string): boolean {
 }
 
 // ── Escape + highlight helpers ──────────────────────────────────────
-
-function escapeHtml(str: string): string {
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
-}
 
 function highlightMatch(text: string, query: string): string {
   if (!query) return escapeHtml(text);

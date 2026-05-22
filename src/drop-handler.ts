@@ -5,6 +5,7 @@ import { getFileContent, updateFileContent } from './github.ts';
 import { removeCachedContent } from './cache.ts';
 import { logInfo, logError } from './logging-client.ts';
 import { pushModal, popModal } from './modal-stack.ts';
+import { showToast, escapeAttr, errorMessage } from './utils.ts';
 
 export interface DropConfig {
   host: string;
@@ -13,26 +14,6 @@ export interface DropConfig {
   repo: string;
   route: Route;
   onSaved: () => void;
-}
-
-/** Show a non-modal toast that auto-dismisses after a few seconds. */
-function showToast(message: string): void {
-  const existing = document.querySelector('.import-toast');
-  if (existing) existing.remove();
-
-  const el = document.createElement('div');
-  el.className = 'import-toast';
-  el.textContent = message;
-  document.body.appendChild(el);
-
-  // Trigger reflow so the transition activates
-  el.offsetWidth; // eslint-disable-line @typescript-eslint/no-unused-expressions
-  el.classList.add('visible');
-
-  setTimeout(() => {
-    el.classList.remove('visible');
-    el.addEventListener('transitionend', () => el.remove());
-  }, 3000);
 }
 
 /** Show a modal for entering link details. Returns null on cancel. */
@@ -195,7 +176,7 @@ async function insertEntries(entryLines: string[], config: DropConfig, via: stri
     showToast(`${n} link${n === 1 ? '' : 's'} imported into ${pageName}`);
     config.onSaved();
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = errorMessage(err);
     logError(`${via}: Failed to save: ${msg}`);
     alert(`Failed to save link(s): ${msg}`);
   }
@@ -290,8 +271,4 @@ export function initDropZone(container: HTMLElement, config: DropConfig, signal:
 function truncate(s: string, max: number): string {
   if (s.length <= max) return s;
   return s.slice(0, max).trimEnd() + '...';
-}
-
-function escapeAttr(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }

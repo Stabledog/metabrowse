@@ -3,6 +3,7 @@
 
 import { getFileContent, updateFileContent } from './github.ts';
 import { setVeditorVersion } from './status-bar.ts';
+import { escapeHtml, errorMessage } from './utils.ts';
 
 // veditor base URL — must be set via VITE_VEDITOR_BASE at build time.
 const VEDITOR_BASE = import.meta.env.VITE_VEDITOR_BASE as string | undefined;
@@ -31,12 +32,6 @@ async function loadVeditor(): Promise<typeof import('./veditor.d.ts')> {
   veditor = await import(/* @vite-ignore */ `${VEDITOR_BASE}/veditor.js?${CACHE_BUST}`);
   if (veditor!.VERSION) setVeditorVersion(veditor!.VERSION);
   return veditor!;
-}
-
-function escapeHtml(s: string): string {
-  const div = document.createElement('div');
-  div.textContent = s;
-  return div.innerHTML;
 }
 
 /** Show the editor for a given content path. */
@@ -69,7 +64,7 @@ export async function showEditor(
     target.innerHTML = `
       <div class="editor-loading" style="flex-direction:column;gap:1rem;">
         <div style="color:#f38ba8;">Failed to load editor</div>
-        <div style="font-size:0.85rem;">${escapeHtml(err instanceof Error ? err.message : String(err))}</div>
+        <div style="font-size:0.85rem;">${escapeHtml(errorMessage(err))}</div>
       </div>
     `;
     return;
@@ -119,7 +114,7 @@ export async function showEditor(
       fileSha = newSha;
       showStatus('Saved');
     } catch (err) {
-      showStatus(`Save failed: ${err instanceof Error ? err.message : err}`, true);
+      showStatus(`Save failed: ${errorMessage(err)}`, true);
     }
   }
 

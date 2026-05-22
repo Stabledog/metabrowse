@@ -4,6 +4,7 @@ import type { TreeEntry } from './github.ts';
 import { createNode, deleteNode, confirmDeleteNodes, renameNode } from './tree-ops.ts';
 import { logInfo } from './logging-client.ts';
 import { pushModal, popModal } from './modal-stack.ts';
+import { errorMessage } from './utils.ts';
 
 interface TreeNode {
   name: string;
@@ -143,59 +144,18 @@ export async function showTreePanel(
 
   const overlay = document.createElement('div');
   overlay.className = 'tree-panel-overlay';
-  overlay.style.cssText = `
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.7);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 10000;
-  `;
 
   const panel = document.createElement('div');
   panel.className = 'tree-panel';
-  panel.style.cssText = `
-    background: #1e1e1e;
-    color: #e0e0e0;
-    border: 1px solid #444;
-    border-radius: 4px;
-    width: 400px;
-    height: 70vh;
-    display: flex;
-    flex-direction: column;
-    font-family: monospace;
-    font-size: 13px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-  `;
 
   // Header
   const header = document.createElement('div');
-  header.style.cssText = `
-    padding: 10px;
-    border-bottom: 1px solid #444;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-weight: bold;
-  `;
+  header.className = 'tree-panel-header';
   header.innerHTML = '<div>Tree Manager</div>';
 
   const closeBtn = document.createElement('button');
   closeBtn.textContent = '×';
-  closeBtn.style.cssText = `
-    background: none;
-    border: none;
-    color: #e0e0e0;
-    font-size: 20px;
-    cursor: pointer;
-    padding: 0;
-    width: 30px;
-    height: 30px;
-  `;
+  closeBtn.className = 'tree-panel-close';
   closeBtn.addEventListener('click', () => overlay.remove());
   header.appendChild(closeBtn);
 
@@ -203,13 +163,7 @@ export async function showTreePanel(
 
   // Toolbar
   const toolbar = document.createElement('div');
-  toolbar.style.cssText = `
-    padding: 8px 10px;
-    border-bottom: 1px solid #444;
-    font-size: 11px;
-    color: #888;
-    line-height: 1.4;
-  `;
+  toolbar.className = 'tree-panel-toolbar';
   toolbar.innerHTML = `
     <div>j/k Nav | l Expand | h Collapse | Enter Go</div>
     <div>gg Top | u/Esc Close | i/Ins New | dd/Del Delete | F2 Rename</div>
@@ -218,63 +172,22 @@ export async function showTreePanel(
 
   // Path indicator
   const pathBar = document.createElement('div');
-  pathBar.style.cssText = `
-    padding: 4px 10px;
-    border-bottom: 1px solid #444;
-    font-size: 11px;
-    color: #aaa;
-    font-style: italic;
-    min-height: 18px;
-  `;
+  pathBar.className = 'tree-panel-pathbar';
   panel.appendChild(pathBar);
 
   // Tree list (scrollable)
   const listContainer = document.createElement('div');
   listContainer.className = 'tree-list';
-  listContainer.style.cssText = `
-    flex: 1;
-    overflow-y: auto;
-    padding: 8px 0;
-    border-bottom: 1px solid #444;
-  `;
   panel.appendChild(listContainer);
 
   // Status bar
   const status = document.createElement('div');
   status.className = 'tree-status';
-  status.style.cssText = `
-    padding: 8px 10px;
-    border-bottom: 1px solid #444;
-    min-height: 20px;
-    font-size: 11px;
-    color: #888;
-  `;
-  status.textContent = ''; // Hidden unless showing feedback
   panel.appendChild(status);
 
   // Footer
   const footer = document.createElement('div');
   footer.className = 'tree-footer';
-  footer.style.cssText = `
-    padding: 8px 10px;
-    display: flex;
-    gap: 6px;
-    justify-content: flex-end;
-  `;
-
-  const closeFooterBtn = document.createElement('button');
-  closeFooterBtn.textContent = 'Close';
-  closeFooterBtn.style.cssText = `
-    padding: 4px 8px;
-    background: #333;
-    color: #e0e0e0;
-    border: 1px solid #555;
-    border-radius: 2px;
-    cursor: pointer;
-    font-size: 12px;
-  `;
-  closeFooterBtn.addEventListener('click', () => overlay.remove());
-  footer.appendChild(closeFooterBtn);
 
   panel.appendChild(footer);
 
@@ -313,22 +226,12 @@ export async function showTreePanel(
       const nodeEl = document.createElement('div');
       nodeEl.className = `tree-node${i === selectedIndex ? ' tree-node-selected' : ''}`;
       nodeEl.setAttribute('data-path', node.dirPath);
-      nodeEl.style.cssText = `
-        padding: 4px 8px;
-        margin-left: ${node.depth * 16}px;
-        cursor: pointer;
-        border-left: 2px solid transparent;
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        ${i === selectedIndex ? 'background: #333; border-left-color: #0ea5e9;' : 'border-left-color: transparent;'}
-      `;
+      nodeEl.style.marginLeft = `${node.depth * 16}px`;
 
       // Expand icon
       const iconSpan = document.createElement('span');
       iconSpan.className = 'tree-expand-icon';
       iconSpan.textContent = node.children.length === 0 ? '·' : node.expanded ? '▼' : '▶';
-      iconSpan.style.cssText = 'width: 12px; text-align: center; color: #888; flex-shrink: 0;';
       if (node.children.length > 0) {
         iconSpan.classList.add('clickable');
         iconSpan.style.cursor = 'pointer';
@@ -345,7 +248,6 @@ export async function showTreePanel(
       const nameSpan = document.createElement('span');
       nameSpan.className = 'tree-node-name';
       nameSpan.textContent = node.name;
-      nameSpan.style.cssText = 'flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;';
       nodeEl.appendChild(nameSpan);
 
       // Rename input (replaces name inline)
@@ -355,16 +257,6 @@ export async function showTreePanel(
         input.type = 'text';
         input.value = node.name;
         input.placeholder = 'Rename';
-        input.style.cssText = `
-          flex: 1;
-          background: #2a2a2a;
-          color: #e0e0e0;
-          border: 1px solid #0ea5e9;
-          border-radius: 2px;
-          padding: 2px 4px;
-          font-family: monospace;
-          font-size: 13px;
-        `;
 
         const handleRename = async (value: string) => {
           if (!value.trim()) {
@@ -387,7 +279,7 @@ export async function showTreePanel(
             status.textContent = '';
             render();
           } catch (err) {
-            status.textContent = err instanceof Error ? err.message : String(err);
+            status.textContent = errorMessage(err);
             status.style.color = '#f87171';
           }
         };
@@ -420,35 +312,18 @@ export async function showTreePanel(
       if (inputMode === 'new' && inputNode === node) {
         const childDepth = node.depth + 1;
         const inputRow = document.createElement('div');
-        inputRow.style.cssText = `
-          padding: 4px 8px;
-          margin-left: ${childDepth * 16}px;
-          display: flex;
-          align-items: center;
-          gap: 4px;
-          border-left: 2px solid #0ea5e9;
-          background: #1a2a3a;
-        `;
+        inputRow.className = 'tree-input-row';
+        inputRow.style.marginLeft = `${childDepth * 16}px`;
 
         const iconSpan = document.createElement('span');
+        iconSpan.className = 'tree-expand-icon';
         iconSpan.textContent = '·';
-        iconSpan.style.cssText = 'width: 12px; text-align: center; color: #0ea5e9; flex-shrink: 0;';
         inputRow.appendChild(iconSpan);
 
         const input = document.createElement('input');
         input.type = 'text';
         input.value = '';
         input.placeholder = 'New name';
-        input.style.cssText = `
-          flex: 1;
-          background: #2a2a2a;
-          color: #e0e0e0;
-          border: 1px solid #0ea5e9;
-          border-radius: 2px;
-          padding: 2px 4px;
-          font-family: monospace;
-          font-size: 13px;
-        `;
 
         const handleCreate = async (value: string) => {
           if (!value.trim()) {
@@ -473,7 +348,7 @@ export async function showTreePanel(
             status.textContent = '';
             render();
           } catch (err) {
-            status.textContent = err instanceof Error ? err.message : String(err);
+            status.textContent = errorMessage(err);
             status.style.color = '#f87171';
           }
         };
@@ -651,7 +526,7 @@ export async function showTreePanel(
         logInfo(`TreePanel: Deleted ${node.dirPath}`);
       }
     } catch (err) {
-      status.textContent = err instanceof Error ? err.message : String(err);
+      status.textContent = errorMessage(err);
       status.style.color = '#f87171';
     }
   }
@@ -661,15 +536,6 @@ export async function showTreePanel(
       footer.innerHTML = '';
       const closeBtn = document.createElement('button');
       closeBtn.textContent = 'Close';
-      closeBtn.style.cssText = `
-        padding: 4px 8px;
-        background: #333;
-        color: #e0e0e0;
-        border: 1px solid #555;
-        border-radius: 2px;
-        cursor: pointer;
-        font-size: 12px;
-      `;
       closeBtn.addEventListener('click', () => overlay.remove());
       footer.appendChild(closeBtn);
       return;
@@ -681,15 +547,6 @@ export async function showTreePanel(
 
     const cancelBtn = document.createElement('button');
     cancelBtn.textContent = 'Cancel';
-    cancelBtn.style.cssText = `
-      padding: 4px 8px;
-      background: #333;
-      color: #e0e0e0;
-      border: 1px solid #555;
-      border-radius: 2px;
-      cursor: pointer;
-      font-size: 12px;
-    `;
     cancelBtn.addEventListener('click', () => {
       pendingDelete = null;
       renderConfirmation();
@@ -699,15 +556,7 @@ export async function showTreePanel(
 
     const confirmBtn = document.createElement('button');
     confirmBtn.textContent = `Confirm Delete ${pendingDelete.paths.length}`;
-    confirmBtn.style.cssText = `
-      padding: 4px 8px;
-      background: #dc2626;
-      color: white;
-      border: none;
-      border-radius: 2px;
-      cursor: pointer;
-      font-size: 12px;
-    `;
+    confirmBtn.className = 'tree-delete-btn';
     confirmBtn.addEventListener('click', async () => {
       try {
         status.textContent = 'Deleting...';
@@ -723,7 +572,7 @@ export async function showTreePanel(
         renderConfirmation();
         render();
       } catch (err) {
-        status.textContent = err instanceof Error ? err.message : String(err);
+        status.textContent = errorMessage(err);
         status.style.color = '#f87171';
       }
     });

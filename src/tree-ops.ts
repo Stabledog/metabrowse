@@ -3,6 +3,7 @@
 import { createFile, deleteFile, getFileContent } from './github.ts';
 import { removeCachedContent } from './cache.ts';
 import { logInfo, logError } from './logging-client.ts';
+import { formatDirName, errorMessage } from './utils.ts';
 
 /**
  * Validate a node name.
@@ -29,15 +30,6 @@ function findDescendants(dirPath: string, contentPaths: string[]): string[] {
 }
 
 /**
- * Format a directory name for display: hyphens to spaces, title-case.
- */
-function formatDisplayName(name: string): string {
-  return name
-    .replace(/[-_]/g, ' ')
-    .replace(/\b\w/g, c => c.toUpperCase());
-}
-
-/**
  * Create a new child node.
  * Validates name, checks for duplicates, creates text/{parentPath}/{newName}/README.md.
  */
@@ -59,7 +51,7 @@ export async function createNode(
   }
 
   const filePath = `text/${newDirPath}/README.md`;
-  const displayName = formatDisplayName(newName);
+  const displayName = formatDirName(newName);
   const content = `# ${displayName}\n\n`;
 
   try {
@@ -67,7 +59,7 @@ export async function createNode(
     logInfo(`TreeOps: Created node ${newDirPath}`);
     return newDirPath;
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = errorMessage(err);
     logError(`TreeOps: Failed to create ${newDirPath}: ${msg}`);
     throw err;
   }
@@ -108,7 +100,7 @@ export async function deleteNode(
     logInfo(`TreeOps: Deleted node ${dirPath}`);
     return { needsConfirm: false };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = errorMessage(err);
     logError(`TreeOps: Failed to delete ${dirPath}: ${msg}`);
     throw err;
   }
@@ -132,7 +124,7 @@ export async function confirmDeleteNodes(
     }
     logInfo(`TreeOps: Deleted ${paths.length} node(s)`);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = errorMessage(err);
     logError(`TreeOps: Failed during cascade delete: ${msg}`);
     throw err;
   }
@@ -189,7 +181,7 @@ export async function renameNode(
     logInfo(`TreeOps: Renamed node ${oldDirPath} → ${newDirPath}`);
     return newDirPath;
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = errorMessage(err);
     logError(`TreeOps: Failed to rename ${oldDirPath}: ${msg}`);
     throw err;
   }

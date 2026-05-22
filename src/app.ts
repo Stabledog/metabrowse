@@ -19,6 +19,7 @@ import { showTreePanel } from './tree-panel.ts';
 import { initDropZone, handleSingleLink } from './drop-handler.ts';
 import { startNavigation } from './lifecycle.ts';
 import { detectBarouse, handleOpenAll, handleCapture, handleUpdate, cachePageLines } from './workspace.ts';
+import { escapeHtml, escapeAttr, errorMessage } from './utils.ts';
 import type { WorkspaceConfig } from './workspace.ts';
 
 const LS_TOKEN = 'notehub:token';
@@ -50,7 +51,7 @@ export async function init(): Promise<void> {
       token = savedToken;
       await loadApp();
     } catch (err) {
-      logError(`Auth: Token validation failed: ${err instanceof Error ? err.message : err}`);
+      logError(`Auth: Token validation failed: ${errorMessage(err)}`);
       showAuth();
     }
   } else {
@@ -108,7 +109,7 @@ function showAuth(error?: string): void {
       repo = repoInput;
       await loadApp();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = errorMessage(err);
       logError(`Auth: Token validation failed: ${msg}`);
       showAuth(`Authentication failed: ${msg}`);
     }
@@ -132,7 +133,7 @@ async function loadApp(): Promise<void> {
       tree = cached;
       logWarn(`Tree: Using cached tree due to network error`);
     } else {
-      const msg = String(err);
+      const msg = errorMessage(err);
       logError(`Tree: Failed to fetch tree: ${msg}`);
       app.innerHTML = `<div class="error">Failed to load content tree: ${escapeHtml(msg)}</div>`;
       return;
@@ -220,7 +221,7 @@ async function handleRoute(route: Route): Promise<void> {
       doRender(route, content, signal);
     }
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = errorMessage(err);
     if (!cached) {
       logError(`Content: Failed to load ${route.contentPath}: ${msg}`);
       app.innerHTML = `<div class="error">Failed to load: ${escapeHtml(msg)}</div>`;
@@ -301,16 +302,6 @@ function doRender(route: Route, content: string, signal: AbortSignal): void {
       }
     });
   }
-}
-
-function escapeHtml(s: string): string {
-  const div = document.createElement('div');
-  div.textContent = s;
-  return div.innerHTML;
-}
-
-function escapeAttr(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 /** Export current app state for tree panel. */

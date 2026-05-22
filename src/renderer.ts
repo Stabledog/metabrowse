@@ -5,6 +5,7 @@ import type { Route } from './router.ts';
 import { createLogViewer } from './logging-client.ts';
 import { el } from './dom.ts';
 import { createStatusBar } from './status-bar.ts';
+import { formatDirName, getChildDirs } from './utils.ts';
 
 export interface RenderConfig {
   contentPaths: string[];
@@ -16,21 +17,6 @@ export interface RenderConfig {
   onOpenAll?: (container: HTMLElement) => void;
   onCapture?: () => void;
   onUpdate?: () => void;
-}
-
-/** Format a directory name for display: replace [-_] with spaces, title-case. */
-function formatDirName(name: string): string {
-  return name
-    .replace(/[-_]/g, ' ')
-    .replace(/\b\w/g, c => c.toUpperCase());
-}
-
-/** Get child directory paths (immediate children only). */
-function getChildDirs(dirPath: string, contentPaths: string[]): string[] {
-  return contentPaths.filter(p => {
-    if (!dirPath) return p !== '' && !p.includes('/');
-    return p.startsWith(dirPath + '/') && !p.slice(dirPath.length + 1).includes('/');
-  }).sort();
 }
 
 /** Build breadcrumb data from a route path. */
