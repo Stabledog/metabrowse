@@ -104,6 +104,12 @@ const STORAGE_MODE = 'metabrowse-search-mode';
 const STORAGE_TERM = 'metabrowse-search-term';
 
 let cleanupFn: (() => void) | null = null;
+let cancelSearchFn: (() => void) | null = null;
+
+/** Cancel any active search from outside this module (e.g. keyboard handler). */
+export function cancelSearch(): void {
+  cancelSearchFn?.();
+}
 
 // ── Local filter helpers ────────────────────────────────────────────
 
@@ -410,20 +416,38 @@ export function initSearch(container: HTMLElement, getSearchIndex: () => SearchE
     input!.focus();
   };
 
+  cancelSearchFn = () => { onClear(); input!.blur(); };
+
   input.addEventListener('input', onInput);
   checkbox.addEventListener('change', onChange);
   if (clearBtn) clearBtn.addEventListener('click', onClear);
 
-  const onTab = (e: KeyboardEvent) => {
-    if (e.key !== 'Tab' || e.shiftKey) return;
-    const panel = document.getElementById('search-results-panel');
-    if (!panel || panel.style.display === 'none') return;
-    const firstLink = panel.querySelector<HTMLAnchorElement>('a');
-    if (!firstLink) return;
-    e.preventDefault();
-    firstLink.focus();
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'Tab' && !e.shiftKey) {
+      const panel = document.getElementById('search-results-panel');
+      if (!panel || panel.style.display === 'none') return;
+      const firstLink = panel.querySelector<HTMLAnchorElement>('a');
+      if (!firstLink) return;
+      e.preventDefault();
+      firstLink.focus();
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      onClear();
+      input!.blur();
+    }
   };
-  input.addEventListener('keydown', onTab);
+  input.addEventListener('keydown', onKeyDown);
+
+  const onResultPanelClick = (e: MouseEvent) => {
+    const a = (e.target as Element).closest('a');
+    if (a && a.getAttribute('target') !== '_blank') {
+      input!.value = '';
+      saveState();
+      updateClearButton();
+    }
+  };
+  if (resultsPanel) resultsPanel.addEventListener('click', onResultPanelClick);
 
   // Restore saved state
   try {
@@ -438,9 +462,11 @@ export function initSearch(container: HTMLElement, getSearchIndex: () => SearchE
 
   cleanupFn = () => {
     input.removeEventListener('input', onInput);
-    input.removeEventListener('keydown', onTab);
+    input.removeEventListener('keydown', onKeyDown);
     checkbox.removeEventListener('change', onChange);
     if (clearBtn) clearBtn.removeEventListener('click', onClear);
+    if (resultsPanel) resultsPanel.removeEventListener('click', onResultPanelClick);
+    cancelSearchFn = null;
     clearTimeout(debounceTimer);
   };
 }

@@ -3,6 +3,7 @@
 import { isInputFocused } from './lifecycle.ts';
 import { isModalOpen } from './modal-stack.ts';
 import { getCurrentRoute, navigateTo } from './router.ts';
+import { cancelSearch } from './search.ts';
 
 export interface KeyboardOpts {
   onTreePanel?: () => void;
@@ -16,6 +17,17 @@ export function initKeyboard(container: HTMLElement, opts: KeyboardOpts | undefi
 
   function handler(e: KeyboardEvent): void {
     if (isModalOpen()) return;
+
+    // ESC — cancel active global search
+    if (e.key === 'Escape' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      if (isInputFocused()) return;
+      const panel = document.getElementById('search-results-panel');
+      if (panel && panel.style.display !== 'none') {
+        e.preventDefault();
+        cancelSearch();
+      }
+    }
+
     // "t" — open tree panel
     if (e.key === 't' && !e.ctrlKey && !e.metaKey && !e.altKey) {
       if (isInputFocused()) return;
