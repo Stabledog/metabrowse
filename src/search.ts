@@ -375,7 +375,7 @@ export function initSearch(container: HTMLElement, getSearchIndex: () => SearchE
     for (const key of pageOrder) {
       const group = byPage.get(key)!;
       html += '<div class="search-result-page">';
-      html += `<a href="${escapeHtml(group.page.path)}" class="search-result-page-link" target="_self">${highlightMatch(group.page.breadcrumbs, query)}</a>`;
+      html += `<div class="search-result-page-header"><a href="${escapeHtml(group.page.path)}" class="search-result-page-link" target="_self">${highlightMatch(group.page.breadcrumbs, query)}</a></div>`;
       for (const item of group.items) {
         const typeLabel = item.type === 'link' ? '\u2192' : item.type === 'section' ? '\u00A7' : item.type === 'group' ? '\u25B8' : item.type === 'child' ? '\u25C6' : '\uD83D\uDCC4';
         const linkHref = (item.type === 'link' && item.link) ? item.link.url : group.page.path;

@@ -14,7 +14,7 @@ export function initLinkNav(container: HTMLElement, signal: AbortSignal): void {
 
   function getVisibleLinks(): HTMLElement[] {
     const all = container.querySelectorAll<HTMLElement>(
-      '.links > li, .group-links > li, .sublevel-links > li, .search-result-item',
+      '.links > li, .group-links > li, .sublevel-links > li, .search-result-item, .search-result-page-header',
     );
     const visible: HTMLElement[] = [];
     for (const item of all) {
