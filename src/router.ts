@@ -1,5 +1,7 @@
 /** Hash-based router. Maps #/path → text/path/README.md */
 
+import { contentPathFor } from './utils.ts';
+
 export type RouteKind = 'browse' | 'edit';
 
 export interface Route {
@@ -35,8 +37,7 @@ export function parseHash(hash: string): Route {
   // Decode percent-encoding (browser encodes spaces in fragments as %20)
   try { path = decodeURIComponent(path); } catch { /* leave as-is if malformed */ }
 
-  // Build content path
-  const contentPath = path ? `text/${path}/README.md` : 'text/README.md';
+  const contentPath = contentPathFor(path);
 
   return { kind, dirPath: path, contentPath };
 }

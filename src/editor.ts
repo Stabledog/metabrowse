@@ -3,7 +3,7 @@
 
 import { getFileContent, updateFileContent } from './github.ts';
 import { setVeditorVersion } from './status-bar.ts';
-import { escapeHtml, errorMessage } from './utils.ts';
+import { escapeHtml, errorMessage, basename, contentPathFor } from './utils.ts';
 import type { VEditorCallbacks } from './veditor.d.ts';
 
 // veditor base URL — must be set via VITE_VEDITOR_BASE at build time.
@@ -37,11 +37,7 @@ async function loadVeditor(): Promise<typeof import('./veditor.d.ts')> {
 
 function dirLabel(dirPath: string): string {
   if (!dirPath) return 'home';
-  return dirPath.split('/').pop()!;
-}
-
-function contentPathFor(dirPath: string): string {
-  return dirPath ? `text/${dirPath}/README.md` : 'text/README.md';
+  return basename(dirPath);
 }
 
 /** Show the editor for a given content path. */
@@ -117,8 +113,10 @@ export async function showEditor(
 
   // --- Multi-buffer callbacks (shared across all buffers) ---
 
+  const documentList = contentPaths.map(p => ({ id: p, label: dirLabel(p) }));
+
   async function onListDocuments() {
-    return contentPaths.map(p => ({ id: p, label: dirLabel(p) }));
+    return documentList;
   }
 
   function makeBufferCallbacks(bufDirPath: string, initialSha: string, initialContent: string): VEditorCallbacks {
@@ -133,7 +131,7 @@ export async function showEditor(
           showStatus('No changes');
           return;
         }
-        const filename = bufContentPath.split('/').pop() ?? bufContentPath;
+        const filename = basename(bufContentPath);
         const message = `Update ${filename} via metabrowse editor`;
         try {
           showStatus('Saving...');

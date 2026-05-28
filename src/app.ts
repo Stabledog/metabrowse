@@ -19,7 +19,7 @@ import { showTreePanel } from './tree-panel.ts';
 import { initDropZone, handleSingleLink } from './drop-handler.ts';
 import { startNavigation } from './lifecycle.ts';
 import { detectBarouse, handleOpenAll, handleCapture, handleUpdate, cachePageLines } from './workspace.ts';
-import { escapeHtml, escapeAttr, errorMessage } from './utils.ts';
+import { escapeHtml, escapeAttr, errorMessage, basename, contentPathFor } from './utils.ts';
 import type { WorkspaceConfig } from './workspace.ts';
 
 const LS_TOKEN = 'notehub:token';
@@ -157,7 +157,7 @@ async function buildSearchIndex(): Promise<void> {
   // Fetch all pages in parallel
   const results = await Promise.allSettled(
     contentPaths.map(async (dirPath) => {
-      const contentPath = dirPath ? `text/${dirPath}/README.md` : 'text/README.md';
+      const contentPath = contentPathFor(dirPath);
       let content = getCachedContent(contentPath);
       if (!content) {
         content = await getRawContent(host, token, owner, repo, contentPath);
@@ -235,7 +235,7 @@ function doRender(route: Route, content: string, signal: AbortSignal): void {
   cachePageLines(content);
   const parsed = parseContent(content);
   const title = route.dirPath
-    ? route.dirPath.split('/').pop()!.replace(/[-_]/g, ' ')
+    ? basename(route.dirPath).replace(/[-_]/g, ' ')
     : 'Home';
   const doc = transform(parsed, title);
 

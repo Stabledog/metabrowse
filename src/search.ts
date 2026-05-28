@@ -3,7 +3,7 @@
 import { parseContent } from './parser.ts';
 import { transform } from './transformer.ts';
 import type { HTMLGroup, HTMLLinkGroup, HTMLSection } from './transformer.ts';
-import { escapeHtml, formatDirName, getChildDirs } from './utils.ts';
+import { escapeHtml, formatDirName, getChildDirs, basename } from './utils.ts';
 
 // ── Search index types ──────────────────────────────────────────────
 
@@ -84,7 +84,7 @@ export function buildEntry(
   contentPaths: string[],
 ): SearchEntry {
   const parsed = parseContent(content);
-  const title = dirPath ? formatDirName(dirPath.split('/').pop()!) : 'Home';
+  const title = dirPath ? formatDirName(basename(dirPath)) : 'Home';
   const doc = transform(parsed, title);
 
   return {
@@ -94,7 +94,7 @@ export function buildEntry(
     links: extractLinksFromItems(doc.items, ''),
     groups: extractNames(doc.items, 'group'),
     sections: extractNames(doc.items, 'section'),
-    children: getChildDirs(dirPath, contentPaths).map(d => formatDirName(d.split('/').pop()!)),
+    children: getChildDirs(dirPath, contentPaths).map(d => formatDirName(basename(d))),
   };
 }
 

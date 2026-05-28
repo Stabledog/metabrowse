@@ -3,7 +3,7 @@
 import { createFile, deleteFile, getFileContent } from './github.ts';
 import { removeCachedContent } from './cache.ts';
 import { logInfo, logError } from './logging-client.ts';
-import { formatDirName, errorMessage } from './utils.ts';
+import { formatDirName, errorMessage, basename, contentPathFor } from './utils.ts';
 
 /**
  * Validate a node name.
@@ -50,7 +50,7 @@ export async function createNode(
     throw new Error(`Node '${newName}' already exists at this level`);
   }
 
-  const filePath = `text/${newDirPath}/README.md`;
+  const filePath = contentPathFor(newDirPath);
   const displayName = formatDirName(newName);
   const content = `# ${displayName}\n\n`;
 
@@ -93,7 +93,7 @@ export async function deleteNode(
 
   // Delete the single file
   try {
-    const filePath = `text/${dirPath}/README.md`;
+    const filePath = contentPathFor(dirPath);
     const { sha } = await getFileContent(host, token, owner, repo, filePath);
     await deleteFile(host, token, owner, repo, filePath, sha, `Delete node ${dirPath}`);
     removeCachedContent(filePath);
@@ -117,7 +117,7 @@ export async function confirmDeleteNodes(
 ): Promise<void> {
   try {
     for (const path of paths) {
-      const filePath = `text/${path}/README.md`;
+      const filePath = contentPathFor(path);
       const { sha } = await getFileContent(host, token, owner, repo, filePath);
       await deleteFile(host, token, owner, repo, filePath, sha, `Delete node ${path}`);
       removeCachedContent(filePath);
@@ -130,10 +130,36 @@ export async function confirmDeleteNodes(
   }
 }
 
-/**
- * Move a node (and all descendants) to a new parent.
- * Fetches all files under the source path, creates at new location, deletes old.
- */
+/** Relocate files from oldBase to newBase in three parallel phases: fetch, create, delete. */
+async function relocateFiles(
+  host: string, token: string,
+  owner: string, repo: string,
+  allPaths: string[], oldBase: string, newBase: string, commitMsg: string,
+): Promise<void> {
+  const entries = allPaths.map(path => ({
+    oldFile: contentPathFor(path),
+    newFile: contentPathFor(newBase + path.slice(oldBase.length)),
+  }));
+
+  const files = await Promise.all(
+    entries.map(e => getFileContent(host, token, owner, repo, e.oldFile)
+      .then(f => ({ ...e, content: f.content, sha: f.sha }))),
+  );
+
+  await Promise.all(
+    files.map(f => createFile(host, token, owner, repo, f.newFile, f.content, commitMsg)),
+  );
+
+  await Promise.all(
+    files.map(f => deleteFile(host, token, owner, repo, f.oldFile, f.sha, commitMsg)),
+  );
+
+  for (const e of entries) {
+    removeCachedContent(e.oldFile);
+    removeCachedContent(e.newFile);
+  }
+}
+
 export async function moveNode(
   host: string, token: string,
   owner: string, repo: string,
@@ -144,16 +170,13 @@ export async function moveNode(
     throw new Error('Cannot move root node');
   }
 
-  const sourceName = sourceDirPath.includes('/')
-    ? sourceDirPath.slice(sourceDirPath.lastIndexOf('/') + 1)
-    : sourceDirPath;
+  const sourceName = basename(sourceDirPath);
   const newDirPath = destParentPath ? `${destParentPath}/${sourceName}` : sourceName;
 
   if (newDirPath === sourceDirPath) {
     throw new Error('Source and destination are the same');
   }
 
-  // Prevent moving into own descendant
   if (destParentPath === sourceDirPath || destParentPath.startsWith(sourceDirPath + '/')) {
     throw new Error('Cannot move a node into itself or its descendant');
   }
@@ -162,35 +185,19 @@ export async function moveNode(
     throw new Error(`Node '${sourceName}' already exists at the destination`);
   }
 
-  const descendants = findDescendants(sourceDirPath, contentPaths);
-  const allPaths = [sourceDirPath, ...descendants];
+  const allPaths = [sourceDirPath, ...findDescendants(sourceDirPath, contentPaths)];
 
   try {
-    for (const path of allPaths) {
-      const oldFilePath = `text/${path}/README.md`;
-      const newPath = newDirPath + path.slice(sourceDirPath.length);
-      const newFilePath = `text/${newPath}/README.md`;
-
-      const { content, sha } = await getFileContent(host, token, owner, repo, oldFilePath);
-      await createFile(host, token, owner, repo, newFilePath, content, `Move node ${sourceDirPath} → ${newDirPath}`);
-      await deleteFile(host, token, owner, repo, oldFilePath, sha, `Delete old ${sourceDirPath} (moved)`);
-      removeCachedContent(oldFilePath);
-      removeCachedContent(newFilePath);
-    }
-
+    await relocateFiles(host, token, owner, repo, allPaths, sourceDirPath, newDirPath,
+      `Move ${sourceDirPath} → ${newDirPath}`);
     logInfo(`TreeOps: Moved node ${sourceDirPath} → ${newDirPath}`);
     return newDirPath;
   } catch (err) {
-    const msg = errorMessage(err);
-    logError(`TreeOps: Failed to move ${sourceDirPath}: ${msg}`);
+    logError(`TreeOps: Failed to move ${sourceDirPath}: ${errorMessage(err)}`);
     throw err;
   }
 }
 
-/**
- * Rename a node (and all descendants).
- * Fetches all files under the old path, creates at new path, deletes old.
- */
 export async function renameNode(
   host: string, token: string,
   owner: string, repo: string,
@@ -202,44 +209,22 @@ export async function renameNode(
     throw new Error(`Invalid name: ${nameError}`);
   }
 
-  const descendants = findDescendants(oldDirPath, contentPaths);
-  const allPaths = [oldDirPath, ...descendants];
-
-  // Build new paths
   const parentPath = oldDirPath.includes('/') ? oldDirPath.slice(0, oldDirPath.lastIndexOf('/')) : '';
   const newDirPath = parentPath ? `${parentPath}/${newName}` : newName;
 
-  // Check for duplicate
   if (newDirPath !== oldDirPath && contentPaths.includes(newDirPath)) {
     throw new Error(`Node '${newName}' already exists at this level`);
   }
 
+  const allPaths = [oldDirPath, ...findDescendants(oldDirPath, contentPaths)];
+
   try {
-    // For each file under oldDirPath, copy to newDirPath location
-    for (const path of allPaths) {
-      const oldFilePath = `text/${path}/README.md`;
-      const newPath = newDirPath + path.slice(oldDirPath.length);
-      const newFilePath = `text/${newPath}/README.md`;
-
-      // Fetch content + SHA
-      const { content, sha } = await getFileContent(host, token, owner, repo, oldFilePath);
-
-      // Create at new location
-      await createFile(host, token, owner, repo, newFilePath, content, `Rename node ${oldDirPath} → ${newDirPath}`);
-
-      // Delete at old location
-      await deleteFile(host, token, owner, repo, oldFilePath, sha, `Delete old ${oldDirPath} (renamed)`);
-
-      // Clear cache for both paths
-      removeCachedContent(oldFilePath);
-      removeCachedContent(newFilePath);
-    }
-
+    await relocateFiles(host, token, owner, repo, allPaths, oldDirPath, newDirPath,
+      `Rename ${oldDirPath} → ${newDirPath}`);
     logInfo(`TreeOps: Renamed node ${oldDirPath} → ${newDirPath}`);
     return newDirPath;
   } catch (err) {
-    const msg = errorMessage(err);
-    logError(`TreeOps: Failed to rename ${oldDirPath}: ${msg}`);
+    logError(`TreeOps: Failed to rename ${oldDirPath}: ${errorMessage(err)}`);
     throw err;
   }
 }

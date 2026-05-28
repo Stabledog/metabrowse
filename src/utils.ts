@@ -12,6 +12,14 @@ export function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+export function basename(dirPath: string): string {
+  return dirPath.split('/').pop()!;
+}
+
+export function contentPathFor(dirPath: string): string {
+  return dirPath ? `text/${dirPath}/README.md` : 'text/README.md';
+}
+
 export function formatDirName(name: string): string {
   return name
     .replace(/[-_]/g, ' ')

@@ -276,13 +276,7 @@ export async function showTreePanel(
             await renameNode(state.host, state.token, state.owner, state.repo, node.dirPath, value.trim(), state.contentPaths);
             inputMode = null;
             inputNode = null;
-            const newPaths = await refreshTree();
-            state.contentPaths = newPaths;
-            const expanded = getExpandedPaths(treeRoot);
-            treeRoot = buildTreeNodes(newPaths, expanded);
-            selectedIndex = Math.min(selectedIndex, getVisibleNodes(treeRoot).length - 1);
-            status.textContent = '';
-            render();
+            await refreshAfterMutation();
           } catch (err) {
             status.textContent = errorMessage(err);
             status.style.color = '#f87171';
@@ -344,14 +338,7 @@ export async function showTreePanel(
             await createNode(state.host, state.token, state.owner, state.repo, parentDirPath, value.trim(), state.contentPaths);
             inputMode = null;
             inputNode = null;
-            const newPaths = await refreshTree();
-            state.contentPaths = newPaths;
-            const expanded = getExpandedPaths(treeRoot);
-            expanded.add(parentDirPath);
-            treeRoot = buildTreeNodes(newPaths, expanded);
-            selectedIndex = Math.min(selectedIndex, getVisibleNodes(treeRoot).length - 1);
-            status.textContent = '';
-            render();
+            await refreshAfterMutation({ expandDir: parentDirPath });
           } catch (err) {
             status.textContent = errorMessage(err);
             status.style.color = '#f87171';
@@ -533,6 +520,24 @@ export async function showTreePanel(
     }
   }
 
+  async function refreshAfterMutation(opts?: { expandDir?: string; selectPath?: string }): Promise<void> {
+    const newPaths = await refreshTree();
+    state.contentPaths = newPaths;
+    const expanded = getExpandedPaths(treeRoot);
+    if (opts?.expandDir) expanded.add(opts.expandDir);
+    treeRoot = buildTreeNodes(newPaths, expanded);
+    if (opts?.selectPath) {
+      expandToPath(treeRoot, opts.selectPath);
+      const visible = getVisibleNodes(treeRoot);
+      const idx = visible.findIndex(n => n.dirPath === opts.selectPath);
+      selectedIndex = idx >= 0 ? idx : Math.min(selectedIndex, visible.length - 1);
+    } else {
+      selectedIndex = Math.min(selectedIndex, getVisibleNodes(treeRoot).length - 1);
+    }
+    status.textContent = '';
+    render();
+  }
+
   async function handleDelete(node: TreeNode) {
     try {
       status.textContent = 'Checking...';
@@ -544,14 +549,7 @@ export async function showTreePanel(
         pendingDelete = { paths: result.paths };
         renderConfirmation();
       } else {
-        // Deleted single file, refresh
-        const newPaths = await refreshTree();
-        state.contentPaths = newPaths;
-        const expanded = getExpandedPaths(treeRoot);
-        treeRoot = buildTreeNodes(newPaths, expanded);
-        selectedIndex = Math.min(selectedIndex, getVisibleNodes(treeRoot).length - 1);
-        status.textContent = '';
-        render();
+        await refreshAfterMutation();
         logInfo(`TreePanel: Deleted ${node.dirPath}`);
       }
     } catch (err) {
@@ -569,17 +567,7 @@ export async function showTreePanel(
         source.dirPath, dest.dirPath, state.contentPaths,
       );
       moveSource = null;
-      const newPaths = await refreshTree();
-      state.contentPaths = newPaths;
-      const expanded = getExpandedPaths(treeRoot);
-      expanded.add(dest.dirPath);
-      treeRoot = buildTreeNodes(newPaths, expanded);
-      expandToPath(treeRoot, newDirPath);
-      const visibleAfter = getVisibleNodes(treeRoot);
-      const movedIdx = visibleAfter.findIndex(n => n.dirPath === newDirPath);
-      selectedIndex = movedIdx >= 0 ? movedIdx : Math.min(selectedIndex, visibleAfter.length - 1);
-      status.textContent = '';
-      render();
+      await refreshAfterMutation({ expandDir: dest.dirPath, selectPath: newDirPath });
       logInfo(`TreePanel: Moved ${source.dirPath} → ${newDirPath}`);
     } catch (err) {
       status.textContent = errorMessage(err);
@@ -618,15 +606,9 @@ export async function showTreePanel(
         status.textContent = 'Deleting...';
         status.style.color = '#888';
         await confirmDeleteNodes(state.host, state.token, state.owner, state.repo, pendingDelete!.paths);
-        const newPaths = await refreshTree();
-        state.contentPaths = newPaths;
-        const expanded = getExpandedPaths(treeRoot);
-        treeRoot = buildTreeNodes(newPaths, expanded);
-        selectedIndex = Math.min(selectedIndex, getVisibleNodes(treeRoot).length - 1);
         pendingDelete = null;
-        status.textContent = '';
         renderConfirmation();
-        render();
+        await refreshAfterMutation();
       } catch (err) {
         status.textContent = errorMessage(err);
         status.style.color = '#f87171';

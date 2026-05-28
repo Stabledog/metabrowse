@@ -5,7 +5,7 @@ import type { Route } from './router.ts';
 import { createLogViewer } from './logging-client.ts';
 import { el } from './dom.ts';
 import { createStatusBar } from './status-bar.ts';
-import { formatDirName, getChildDirs } from './utils.ts';
+import { formatDirName, getChildDirs, basename } from './utils.ts';
 
 export interface RenderConfig {
   contentPaths: string[];
@@ -187,7 +187,7 @@ function renderChildren(dirPath: string, contentPaths: string[]): HTMLDivElement
 
   const nav = el('div', { class: 'children-nav' });
   for (const dir of childDirs) {
-    const name = formatDirName(dir.split('/').pop()!);
+    const name = formatDirName(basename(dir));
     const hash = `#/${dir}`;
     const wrap = el('span', { class: 'child-link-wrap' });
     wrap.appendChild(el('a', { href: hash, class: 'child-link', target: '_self' }, name));
@@ -214,7 +214,7 @@ function renderBreadcrumbsEl(dirPath: string): HTMLHeadingElement {
       h1.appendChild(el('a', { href: crumb.hash, class: 'breadcrumb-link', target: '_self' }, crumb.name));
     }
     // Current page name
-    const currentName = formatDirName(dirPath.split('/').pop()!);
+    const currentName = formatDirName(basename(dirPath));
     h1.appendChild(el('span', { class: 'breadcrumb-separator' }, '/'));
     h1.appendChild(el('span', { class: 'breadcrumb-current' }, currentName));
   } else {
