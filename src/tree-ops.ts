@@ -131,6 +131,63 @@ export async function confirmDeleteNodes(
 }
 
 /**
+ * Move a node (and all descendants) to a new parent.
+ * Fetches all files under the source path, creates at new location, deletes old.
+ */
+export async function moveNode(
+  host: string, token: string,
+  owner: string, repo: string,
+  sourceDirPath: string, destParentPath: string,
+  contentPaths: string[],
+): Promise<string> {
+  if (sourceDirPath === '') {
+    throw new Error('Cannot move root node');
+  }
+
+  const sourceName = sourceDirPath.includes('/')
+    ? sourceDirPath.slice(sourceDirPath.lastIndexOf('/') + 1)
+    : sourceDirPath;
+  const newDirPath = destParentPath ? `${destParentPath}/${sourceName}` : sourceName;
+
+  if (newDirPath === sourceDirPath) {
+    throw new Error('Source and destination are the same');
+  }
+
+  // Prevent moving into own descendant
+  if (destParentPath === sourceDirPath || destParentPath.startsWith(sourceDirPath + '/')) {
+    throw new Error('Cannot move a node into itself or its descendant');
+  }
+
+  if (contentPaths.includes(newDirPath)) {
+    throw new Error(`Node '${sourceName}' already exists at the destination`);
+  }
+
+  const descendants = findDescendants(sourceDirPath, contentPaths);
+  const allPaths = [sourceDirPath, ...descendants];
+
+  try {
+    for (const path of allPaths) {
+      const oldFilePath = `text/${path}/README.md`;
+      const newPath = newDirPath + path.slice(sourceDirPath.length);
+      const newFilePath = `text/${newPath}/README.md`;
+
+      const { content, sha } = await getFileContent(host, token, owner, repo, oldFilePath);
+      await createFile(host, token, owner, repo, newFilePath, content, `Move node ${sourceDirPath} → ${newDirPath}`);
+      await deleteFile(host, token, owner, repo, oldFilePath, sha, `Delete old ${sourceDirPath} (moved)`);
+      removeCachedContent(oldFilePath);
+      removeCachedContent(newFilePath);
+    }
+
+    logInfo(`TreeOps: Moved node ${sourceDirPath} → ${newDirPath}`);
+    return newDirPath;
+  } catch (err) {
+    const msg = errorMessage(err);
+    logError(`TreeOps: Failed to move ${sourceDirPath}: ${msg}`);
+    throw err;
+  }
+}
+
+/**
  * Rename a node (and all descendants).
  * Fetches all files under the old path, creates at new path, deletes old.
  */

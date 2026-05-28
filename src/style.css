@@ -814,6 +814,17 @@ body:has(.editor-screen) {
   border-left-color: #0ea5e9;
 }
 
+.tree-node.tree-node-move-source {
+  font-style: italic;
+  border-left-color: #fbbf24;
+}
+
+.tree-node.tree-node-move-source .tree-node-name::after {
+  content: ' [move]';
+  color: #fbbf24;
+  font-size: 0.8em;
+}
+
 .tree-expand-icon {
   width: 12px;
   text-align: center;

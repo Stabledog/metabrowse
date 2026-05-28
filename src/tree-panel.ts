@@ -1,7 +1,7 @@
 /** Tree management modal panel with keyboard navigation. */
 
 import type { TreeEntry } from './github.ts';
-import { createNode, deleteNode, confirmDeleteNodes, renameNode } from './tree-ops.ts';
+import { createNode, deleteNode, confirmDeleteNodes, renameNode, moveNode } from './tree-ops.ts';
 import { logInfo } from './logging-client.ts';
 import { pushModal, popModal } from './modal-stack.ts';
 import { errorMessage } from './utils.ts';
@@ -166,7 +166,8 @@ export async function showTreePanel(
   toolbar.className = 'tree-panel-toolbar';
   toolbar.innerHTML = `
     <div>j/k Nav | l Expand | h Collapse | Enter Go</div>
-    <div>gg Top | u/Esc Close | i/Ins New | dd/Del Delete | F2 Rename</div>
+    <div>i/Ins New | dd/Del Delete | F2 Rename | m Move | p Place</div>
+    <div>gg Top | u/Esc Close</div>
   `;
   panel.appendChild(toolbar);
 
@@ -200,6 +201,7 @@ export async function showTreePanel(
   let inputNode: TreeNode | null = null;
   let pendingDelete: { paths: string[] } | null = null;
   let pendingFocusInput: HTMLInputElement | null = null;
+  let moveSource: TreeNode | null = null;
   let lastKey = '';
 
   // Auto-select the current page node
@@ -224,7 +226,10 @@ export async function showTreePanel(
     for (let i = 0; i < visible.length; i++) {
       const node = visible[i];
       const nodeEl = document.createElement('div');
-      nodeEl.className = `tree-node${i === selectedIndex ? ' tree-node-selected' : ''}`;
+      let cls = 'tree-node';
+      if (i === selectedIndex) cls += ' tree-node-selected';
+      if (moveSource && node.dirPath === moveSource.dirPath) cls += ' tree-node-move-source';
+      nodeEl.className = cls;
       nodeEl.setAttribute('data-path', node.dirPath);
       nodeEl.style.marginLeft = `${node.depth * 16}px`;
 
@@ -463,11 +468,35 @@ export async function showTreePanel(
         render();
       }
       lastKey = '';
+    } else if (e.key === 'm') {
+      e.preventDefault();
+      if (selectedNode && selectedNode.dirPath !== '' && !inputMode && !pendingDelete) {
+        if (moveSource && moveSource.dirPath === selectedNode.dirPath) {
+          moveSource = null;
+          status.textContent = '';
+        } else {
+          moveSource = selectedNode;
+          status.textContent = `Marked '${selectedNode.name}' for move — navigate to destination and press p`;
+          status.style.color = '#fbbf24';
+        }
+        render();
+      }
+      lastKey = '';
+    } else if (e.key === 'p') {
+      e.preventDefault();
+      if (moveSource && selectedNode && !inputMode && !pendingDelete) {
+        handleMove(moveSource, selectedNode);
+      }
+      lastKey = '';
     } else if (e.key === 'Escape') {
       e.preventDefault();
       if (inputMode) {
         inputMode = null;
         inputNode = null;
+        render();
+      } else if (moveSource) {
+        moveSource = null;
+        status.textContent = '';
         render();
       } else if (pendingDelete) {
         pendingDelete = null;
@@ -525,6 +554,33 @@ export async function showTreePanel(
         render();
         logInfo(`TreePanel: Deleted ${node.dirPath}`);
       }
+    } catch (err) {
+      status.textContent = errorMessage(err);
+      status.style.color = '#f87171';
+    }
+  }
+
+  async function handleMove(source: TreeNode, dest: TreeNode) {
+    try {
+      status.textContent = 'Moving...';
+      status.style.color = '#888';
+      const newDirPath = await moveNode(
+        state.host, state.token, state.owner, state.repo,
+        source.dirPath, dest.dirPath, state.contentPaths,
+      );
+      moveSource = null;
+      const newPaths = await refreshTree();
+      state.contentPaths = newPaths;
+      const expanded = getExpandedPaths(treeRoot);
+      expanded.add(dest.dirPath);
+      treeRoot = buildTreeNodes(newPaths, expanded);
+      expandToPath(treeRoot, newDirPath);
+      const visibleAfter = getVisibleNodes(treeRoot);
+      const movedIdx = visibleAfter.findIndex(n => n.dirPath === newDirPath);
+      selectedIndex = movedIdx >= 0 ? movedIdx : Math.min(selectedIndex, visibleAfter.length - 1);
+      status.textContent = '';
+      render();
+      logInfo(`TreePanel: Moved ${source.dirPath} → ${newDirPath}`);
     } catch (err) {
       status.textContent = errorMessage(err);
       status.style.color = '#f87171';
