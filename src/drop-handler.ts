@@ -16,13 +16,45 @@ export interface DropConfig {
   onSaved: () => void;
 }
 
+/** Fetch the HTML <title> from a URL. Returns null on any failure (CORS, network, etc.). */
+async function fetchPageTitle(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return null;
+    const html = await res.text();
+    const m = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+    if (!m) return null;
+    const div = document.createElement('div');
+    div.innerHTML = m[1];
+    return div.textContent?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Extract a human-readable title from a URL's path slug. Returns null if no descriptive segment found. */
+function slugTitle(url: URL): string | null {
+  const segments = url.pathname.split('/').filter(Boolean);
+  for (let i = segments.length - 1; i >= 0; i--) {
+    const seg = segments[i]
+      .replace(/^([^.]+)\.[^.]+$/, '$1') // strip ext only from "name.ext" (not dotfiles)
+      .replace(/^\./, '');               // strip leading dot from dotfiles like .vscode
+    const words = seg.split(/[-_]+/).filter(Boolean);
+    if (words.some(w => w.length > 20)) continue; // opaque ID/hash — skip
+    if (/[a-zA-Z]{3,}/.test(seg)) {
+      return words.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    }
+  }
+  return null;
+}
+
 /** Show a modal for entering link details. Returns null on cancel. */
 function showLinkModal(url: string): Promise<{ title: string; url: string; comment: string } | null> {
   return new Promise((resolve) => {
-    // Default title: hostname from URL
     let defaultTitle = url;
     try {
-      defaultTitle = new URL(url).hostname.replace(/^www\./, '');
+      const parsed = new URL(url);
+      defaultTitle = truncate(slugTitle(parsed) ?? parsed.hostname.replace(/^www\./, ''), 80);
     } catch { /* keep full URL as fallback */ }
 
     const overlay = document.createElement('div');
@@ -62,6 +94,13 @@ function showLinkModal(url: string): Promise<{ title: string; url: string; comme
 
     titleInput.focus();
     titleInput.select();
+
+    fetchPageTitle(url).then(fetched => {
+      if (fetched && titleInput.isConnected && titleInput.value === defaultTitle) {
+        titleInput.value = truncate(fetched, 80);
+        titleInput.select();
+      }
+    });
 
     function dismiss(result: { title: string; url: string; comment: string } | null) {
       popModal(overlay);
