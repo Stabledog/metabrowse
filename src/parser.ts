@@ -1,6 +1,7 @@
 /** Parser module: Parse markdown content, identify sections/groups/links, extract metadata. */
 
 export interface Link {
+  line: number; // 0-based source line of the link
   url: string;
   text: string | null;
   target: string | null; // Explicit target from {target="..."}
@@ -12,6 +13,7 @@ export interface Link {
 
 export interface Sublevel {
   name: string;
+  line: number; // 0-based source line of the '* ' header
   links: Link[];
   indentLevel: number;
   comment: string | null;
@@ -20,6 +22,7 @@ export interface Sublevel {
 
 export interface Group {
   name: string;
+  line: number; // 0-based source line of the '- ' header
   children: Array<Link | Sublevel>;
   indentLevel: number;
   comment: string | null;
@@ -28,6 +31,7 @@ export interface Group {
 
 export interface Section {
   name: string;
+  line: number; // 0-based source line of the '## ' header
   items: Array<Link | Group>;
   indentLevel: number;
   comment: string | null;
@@ -46,7 +50,7 @@ const PATTERN_MD_LINK = /\[([^\]]+)\]\(([^)]+)\)/;
 // and specific schemes without :// (mailto:, tel:, about:)
 const PATTERN_BARE_URL = /[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^\s]+|(?:mailto|tel|about):[^\s]+/;
 
-function makeLink(opts: Partial<Link> & { url: string }): Link {
+function makeLink(opts: Partial<Link> & { url: string; line: number }): Link {
   return {
     text: null,
     target: null,
@@ -90,7 +94,7 @@ export function extractComment(text: string): [string, string | null] {
  * Parse a single line and extract link information.
  * Returns null if the line doesn't contain a recognized link.
  */
-function parseLinkLine(line: string, indent: number): Link | null {
+function parseLinkLine(line: string, indent: number, lineNo: number): Link | null {
   let stripped = line.trim();
 
   // Remove leading "- " if present
@@ -106,6 +110,7 @@ function parseLinkLine(line: string, indent: number): Link | null {
   const htmlMatch = PATTERN_HTML_LINK.exec(stripped);
   if (htmlMatch) {
     return makeLink({
+      line: lineNo,
       url: htmlMatch[1],
       rawHtml: htmlMatch[0],
       indentLevel: indent,
@@ -117,6 +122,7 @@ function parseLinkLine(line: string, indent: number): Link | null {
   const mdTargetMatch = PATTERN_MD_LINK_WITH_TARGET.exec(stripped);
   if (mdTargetMatch) {
     return makeLink({
+      line: lineNo,
       url: mdTargetMatch[2],
       text: mdTargetMatch[1],
       target: mdTargetMatch[3],
@@ -129,6 +135,7 @@ function parseLinkLine(line: string, indent: number): Link | null {
   const mdMatch = PATTERN_MD_LINK.exec(stripped);
   if (mdMatch) {
     return makeLink({
+      line: lineNo,
       url: mdMatch[2],
       text: mdMatch[1],
       indentLevel: indent,
@@ -144,6 +151,7 @@ function parseLinkLine(line: string, indent: number): Link | null {
     const title = textBefore || null;
 
     return makeLink({
+      line: lineNo,
       url,
       text: title,
       indentLevel: indent,
@@ -203,7 +211,8 @@ export function parseContent(content: string): ParsedDocument {
     }
   }
 
-  for (const line of lines) {
+  for (let lineNo = 0; lineNo < lines.length; lineNo++) {
+    const line = lines[lineNo];
     // Measure indentation
     const indent = line.length - line.trimStart().length;
     const stripped = line.trim();
@@ -217,6 +226,7 @@ export function parseContent(content: string): ParsedDocument {
       const sectionText = stripped.slice(3).trim();
       const [sectionName, sectionComment] = extractComment(sectionText);
       currentSection = {
+        line: lineNo,
         name: sectionName,
         items: [],
         indentLevel: 0,
@@ -233,6 +243,7 @@ export function parseContent(content: string): ParsedDocument {
         const sublevelText = stripped.slice(2).trim();
         const [sublevelName, sublevelComment] = extractComment(sublevelText);
         currentSublevel = {
+          line: lineNo,
           name: sublevelName,
           links: [],
           indentLevel: indent,
@@ -243,6 +254,7 @@ export function parseContent(content: string): ParsedDocument {
         // Orphan sublevel — not inside a group
         flushGroup();
         addItem(makeLink({
+          line: lineNo,
           url: '#',
           rawHtml: `<code>${stripped}</code>`,
           indentLevel: indent,
@@ -253,7 +265,7 @@ export function parseContent(content: string): ParsedDocument {
     }
 
     // Try to parse the line as a link
-    const link = parseLinkLine(line, indent);
+    const link = parseLinkLine(line, indent, lineNo);
 
     if (link) {
       if (currentSublevel) {
@@ -287,6 +299,7 @@ export function parseContent(content: string): ParsedDocument {
       const groupText = stripped.slice(2).trim();
       const [groupName, groupComment] = extractComment(groupText);
       currentGroup = {
+        line: lineNo,
         name: groupName,
         children: [],
         indentLevel: indent,

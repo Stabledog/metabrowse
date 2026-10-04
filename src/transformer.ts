@@ -3,6 +3,7 @@
 import type { ParsedDocument, Link, Group, Sublevel, Section } from './parser.ts';
 
 export interface HTMLLink {
+  line: number; // 0-based source line
   url: string;
   text: string;
   target: string;
@@ -13,6 +14,7 @@ export interface HTMLLink {
 }
 
 export interface HTMLSublevel {
+  line: number; // 0-based source line of the '* ' header
   name: string;
   links: HTMLLink[];
   comment: string | null;
@@ -20,6 +22,7 @@ export interface HTMLSublevel {
 }
 
 export interface HTMLGroup {
+  line: number; // 0-based source line of the '- ' header
   name: string;
   children: Array<HTMLLink | HTMLSublevel>;
   comment: string | null;
@@ -32,6 +35,7 @@ export interface HTMLLinkGroup {
 }
 
 export interface HTMLSection {
+  line: number; // 0-based source line of the '## ' header
   name: string;
   items: Array<HTMLGroup | HTMLLinkGroup | HTMLSection>;
   comment: string | null;
@@ -106,6 +110,7 @@ function transformLink(link: Link): HTMLLink {
   }
 
   return {
+    line: link.line,
     url: link.url,
     text,
     target,
@@ -118,6 +123,7 @@ function transformLink(link: Link): HTMLLink {
 
 function transformSublevel(sublevel: Sublevel): HTMLSublevel {
   return {
+    line: sublevel.line,
     name: sublevel.name,
     links: sublevel.links.map(transformLink),
     comment: sublevel.comment,
@@ -130,6 +136,7 @@ function transformGroup(group: Group): HTMLGroup {
     item.type === 'sublevel' ? transformSublevel(item) : transformLink(item)
   );
   return {
+    line: group.line,
     name: group.name,
     children,
     comment: group.comment,
@@ -144,6 +151,7 @@ function transformItems(items: Array<Link | Group | Section>): Array<HTMLSection
     if (item.type === 'section') {
       const sectionItems = transformItems(item.items);
       transformed.push({
+        line: item.line,
         name: item.name,
         items: sectionItems,
         comment: item.comment,

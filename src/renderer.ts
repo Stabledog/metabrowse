@@ -86,8 +86,8 @@ function renderLink(link: HTMLLink): HTMLLIElement {
 
 // ── Sublevel rendering ──────────────────────────────────────────────
 
-function renderSublevel(sublevel: HTMLSublevel): HTMLDivElement {
-  const div = el('div', { class: 'sublevel' });
+function renderSublevel(sublevel: HTMLSublevel, path: string): HTMLDivElement {
+  const div = el('div', { class: 'sublevel', 'data-mb': path });
 
   const header = el('div', { class: 'sublevel-header' }, sublevel.name);
   if (sublevel.comment) {
@@ -106,8 +106,8 @@ function renderSublevel(sublevel: HTMLSublevel): HTMLDivElement {
 
 // ── Group rendering ─────────────────────────────────────────────────
 
-function renderGroup(group: HTMLGroup): HTMLDivElement {
-  const div = el('div', { class: 'subgroup' });
+function renderGroup(group: HTMLGroup, path: string): HTMLDivElement {
+  const div = el('div', { class: 'subgroup', 'data-mb': path });
 
   const header = el('div', { class: 'subgroup-header' }, group.name);
   if (group.comment) {
@@ -124,10 +124,11 @@ function renderGroup(group: HTMLGroup): HTMLDivElement {
     pendingLinks = [];
   }
 
+  let subIdx = 0;
   for (const child of group.children) {
     if (child.type === 'sublevel') {
       flushLinks();
-      div.appendChild(renderSublevel(child));
+      div.appendChild(renderSublevel(child, `${path}/v${subIdx++}`));
     } else {
       pendingLinks.push(child);
     }
@@ -139,8 +140,8 @@ function renderGroup(group: HTMLGroup): HTMLDivElement {
 
 // ── Link group rendering ────────────────────────────────────────────
 
-function renderLinkGroup(linkGroup: HTMLLinkGroup): HTMLUListElement {
-  const ul = el('ul', { class: 'links' });
+function renderLinkGroup(linkGroup: HTMLLinkGroup, path: string): HTMLUListElement {
+  const ul = el('ul', { class: 'links', 'data-mb': path });
   for (const link of linkGroup.links) {
     ul.appendChild(renderLink(link));
   }
@@ -149,9 +150,10 @@ function renderLinkGroup(linkGroup: HTMLLinkGroup): HTMLUListElement {
 
 // ── Section rendering ───────────────────────────────────────────────
 
-function renderSection(section: HTMLSection): HTMLDetailsElement {
+function renderSection(section: HTMLSection, path: string): HTMLDetailsElement {
   const details = document.createElement('details');
   details.className = 'section';
+  details.setAttribute('data-mb', path);
   details.open = true;
 
   const summary = el('summary', {}, section.name);
@@ -161,22 +163,15 @@ function renderSection(section: HTMLSection): HTMLDetailsElement {
   details.appendChild(summary);
 
   const content = el('div', { class: 'section-content' });
+  let grpIdx = 0, linkIdx = 0, secIdx = 0;
   for (const item of section.items) {
-    content.appendChild(renderSubitem(item));
+    if (item.type === 'group') content.appendChild(renderGroup(item, `${path}/g${grpIdx++}`));
+    else if (item.type === 'link_group') content.appendChild(renderLinkGroup(item, `${path}/l${linkIdx++}`));
+    else content.appendChild(renderSection(item, `${path}/s${secIdx++}`));
   }
   details.appendChild(content);
 
   return details;
-}
-
-// ── Subitem dispatch ────────────────────────────────────────────────
-
-function renderSubitem(item: HTMLGroup | HTMLLinkGroup | HTMLSection): HTMLElement {
-  switch (item.type) {
-    case 'group': return renderGroup(item);
-    case 'link_group': return renderLinkGroup(item);
-    case 'section': return renderSection(item);
-  }
 }
 
 // ── Children nav ────────────────────────────────────────────────────
@@ -321,8 +316,11 @@ export function renderPage(
   if (childrenNav) scrollable.appendChild(childrenNav);
 
   // Render document items
+  let secIdx = 0, grpIdx = 0, linkIdx = 0;
   for (const item of doc.items) {
-    scrollable.appendChild(renderSubitem(item));
+    if (item.type === 'section') scrollable.appendChild(renderSection(item, `s${secIdx++}`));
+    else if (item.type === 'group') scrollable.appendChild(renderGroup(item, `g${grpIdx++}`));
+    else scrollable.appendChild(renderLinkGroup(item, `l${linkIdx++}`));
   }
 
   container.appendChild(scrollable);
