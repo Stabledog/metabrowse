@@ -113,14 +113,15 @@ function bookmarksHtmlLines(nodes: FavoriteNode[], indent: string): string[] {
  * Render the folder as a Netscape bookmarks file, for browsers where barouse
  * can't be installed: the user imports it or drops it on the favorites bar.
  * The folder is wrapped in a toolbar folder, as Edge's own export does, so an
- * import can place it on the bar.
+ * import can place it on the bar. The page title is the folder name, since a
+ * file dropped on the bar becomes a bookmark to the file rather than a folder.
  */
 export function toBookmarksHtml(tree: FavoriteFolder): string {
   return [
     '<!DOCTYPE NETSCAPE-Bookmark-file-1>',
     '<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">',
-    '<TITLE>Bookmarks</TITLE>',
-    '<H1>Bookmarks</H1>',
+    `<TITLE>${escapeAttr(tree.title)}</TITLE>`,
+    `<H1>${escapeAttr(tree.title)}</H1>`,
     '<DL><p>',
     '    <DT><H3 PERSONAL_TOOLBAR_FOLDER="true">Favorites bar</H3>',
     '    <DL><p>',

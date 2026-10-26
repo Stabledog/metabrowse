@@ -184,6 +184,11 @@ describe('toBookmarksHtml', () => {
     expect(html.indexOf('PERSONAL_TOOLBAR_FOLDER')).toBeLessThan(html.indexOf('<H3>page</H3>'));
   });
 
+  it('titles the page after the folder', () => {
+    expect(html).toContain('<TITLE>page</TITLE>');
+    expect(html).toContain('<H1>page</H1>');
+  });
+
   it('keeps tree order and nesting, dividers included', () => {
     const tags = html.split('\n').map((l) => l.trim()).filter((l) => /^<DT>|^<\/?DL>/.test(l));
     expect(tags).toEqual([
