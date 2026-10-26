@@ -7,7 +7,7 @@ import { logInfo, logError } from './logging-client.ts';
 import type { Route } from './router.ts';
 import { pushModal, popModal } from './modal-stack.ts';
 import { showToast, errorMessage } from './utils.ts';
-import { buildFavoritesTree, countLinks } from './favorites.ts';
+import { buildFavoritesTree, countLinks, toBookmarksHtml } from './favorites.ts';
 import type { FavoriteFolder } from './favorites.ts';
 import type { ParsedDocument } from './parser.ts';
 
@@ -682,4 +682,26 @@ export async function handleSendFavorites(doc: ParsedDocument, route: Route): Pr
     logError(`Favorites: Failed: ${msg}`);
     showToast(`Failed to send to favorites bar: ${msg}`);
   }
+}
+
+/** Fallback when barouse is absent: download the folder as a bookmarks file to import. */
+export function handleDownloadFavorites(doc: ParsedDocument, route: Route): void {
+  const tree = buildFavoritesTree(doc, route.dirPath);
+  const linkCount = countLinks(tree.children);
+  if (linkCount === 0) {
+    showToast('No links found on this page');
+    return;
+  }
+  const fileName = `${tree.title.replace(/[\\/:*?"<>|]/g, '_')}.html`;
+  const blob = new Blob([toBookmarksHtml(tree)], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  logInfo(`Favorites: Downloaded ${fileName} (${linkCount} links)`);
+  showToast(`Downloaded '${fileName}' (${linkCount} links): import it into favorites`);
 }

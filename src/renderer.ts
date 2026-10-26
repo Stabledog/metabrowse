@@ -277,8 +277,8 @@ export function renderPage(
   wsUpdateBtn.addEventListener('click', () => config.onUpdate?.());
   headerActions.appendChild(wsUpdateBtn);
 
-  // Hidden until barouse is detected (see app.ts)
-  const favoritesBtn = el('button', { class: 'workspace-btn favorites-btn icon-btn', title: 'Send to favorites bar', style: 'display:none', tabindex: '-1' }, '⭐');
+  // Downloads a bookmarks file; app.ts switches it to direct send when barouse is detected
+  const favoritesBtn = el('button', { class: 'workspace-btn favorites-btn icon-btn', title: 'Download favorites file', tabindex: '-1' }, '⭐');
   favoritesBtn.addEventListener('click', () => config.onSendFavorites?.());
   headerActions.appendChild(favoritesBtn);
 

@@ -18,7 +18,7 @@ import { showEditor } from './editor.ts';
 import { showTreePanel } from './tree-panel.ts';
 import { initDropZone, handleSingleLink } from './drop-handler.ts';
 import { startNavigation } from './lifecycle.ts';
-import { detectBarouse, handleOpenAll, handleCapture, handleUpdate, handleSendFavorites, cachePageLines } from './workspace.ts';
+import { detectBarouse, handleOpenAll, handleCapture, handleUpdate, handleSendFavorites, handleDownloadFavorites, cachePageLines } from './workspace.ts';
 import { escapeHtml, escapeAttr, errorMessage, basename, contentPathFor } from './utils.ts';
 import type { WorkspaceConfig } from './workspace.ts';
 
@@ -243,6 +243,8 @@ function doRender(route: Route, content: string, signal: AbortSignal): void {
     showTreePanel(getAppState(), refreshTree, route.dirPath);
   };
 
+  let barouseAvailable = false;
+
   const wsConfig: WorkspaceConfig = {
     host, token, owner, repo, route,
     onSaved: () => handleRoute(route),
@@ -259,7 +261,9 @@ function doRender(route: Route, content: string, signal: AbortSignal): void {
     onOpenAll: (container) => handleOpenAll(container, wsConfig),
     onCapture: () => handleCapture(wsConfig),
     onUpdate: () => handleUpdate(wsConfig),
-    onSendFavorites: () => handleSendFavorites(parsed, route),
+    onSendFavorites: () => barouseAvailable
+      ? handleSendFavorites(parsed, route)
+      : handleDownloadFavorites(parsed, route),
   });
 
   // Post-render setup
@@ -301,8 +305,9 @@ function doRender(route: Route, content: string, signal: AbortSignal): void {
       for (const btn of app.querySelectorAll<HTMLButtonElement>('.workspace-btn')) {
         btn.disabled = false;
       }
+      barouseAvailable = true;
       for (const btn of app.querySelectorAll<HTMLButtonElement>('.favorites-btn')) {
-        btn.style.display = '';
+        btn.title = 'Send to favorites bar';
       }
     });
   }

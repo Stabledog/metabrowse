@@ -1,6 +1,7 @@
 /** Favorites: turn a parsed page into a folder tree for barouse's favorites bar. */
 
 import type { ParsedDocument, Link, Group } from './parser.ts';
+import { escapeAttr } from './utils.ts';
 
 export interface FavoriteBookmark {
   title: string;
@@ -93,4 +94,39 @@ export function buildFavoritesTree(doc: ParsedDocument, dirPath: string): Favori
     }
   }
   return { title: favoritesRootName(dirPath), children };
+}
+
+function bookmarksHtmlLines(nodes: FavoriteNode[], indent: string): string[] {
+  const lines: string[] = [];
+  for (const node of nodes) {
+    if ('children' in node) {
+      lines.push(`${indent}<DT><H3>${escapeAttr(node.title)}</H3>`);
+      lines.push(`${indent}<DL><p>`, ...bookmarksHtmlLines(node.children, indent + '    '), `${indent}</DL><p>`);
+    } else {
+      lines.push(`${indent}<DT><A HREF="${escapeAttr(node.url)}">${escapeAttr(node.title)}</A>`);
+    }
+  }
+  return lines;
+}
+
+/**
+ * Render the folder as a Netscape bookmarks file, for browsers where barouse
+ * can't be installed: the user imports it or drops it on the favorites bar.
+ * The folder is wrapped in a toolbar folder, as Edge's own export does, so an
+ * import can place it on the bar.
+ */
+export function toBookmarksHtml(tree: FavoriteFolder): string {
+  return [
+    '<!DOCTYPE NETSCAPE-Bookmark-file-1>',
+    '<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">',
+    '<TITLE>Bookmarks</TITLE>',
+    '<H1>Bookmarks</H1>',
+    '<DL><p>',
+    '    <DT><H3 PERSONAL_TOOLBAR_FOLDER="true">Favorites bar</H3>',
+    '    <DL><p>',
+    ...bookmarksHtmlLines([tree], '        '),
+    '    </DL><p>',
+    '</DL><p>',
+    '',
+  ].join('\n');
 }

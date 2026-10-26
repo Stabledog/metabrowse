@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseContent } from '../parser.ts';
-import { buildFavoritesTree, countLinks, favoritesRootName, DIVIDER_URL } from '../favorites.ts';
+import { buildFavoritesTree, countLinks, favoritesRootName, toBookmarksHtml, DIVIDER_URL } from '../favorites.ts';
 import type { FavoriteNode } from '../favorites.ts';
 
 const fixturesDir = join(import.meta.dirname, 'fixtures');
@@ -166,5 +166,41 @@ describe('buildFavoritesTree: edge cases', () => {
       title: 'Metabrowse',
       children: [{ title: 'https://a.example.com', url: 'https://a.example.com' }],
     });
+  });
+});
+
+// ── Bookmarks file (no-barouse fallback) ────────────────────────────
+
+describe('toBookmarksHtml', () => {
+  const tree = buildFavoritesTree(
+    parseContent('- Q&A <one> https://a.example.com/?x=1&y="2"\n## Sec\n- Grp\n  - https://b.example.com\n'),
+    'misc/page',
+  );
+  const html = toBookmarksHtml(tree);
+
+  it('is a Netscape bookmarks file with the folder inside the toolbar folder', () => {
+    expect(html.startsWith('<!DOCTYPE NETSCAPE-Bookmark-file-1>\n')).toBe(true);
+    expect(html).toContain('<DT><H3 PERSONAL_TOOLBAR_FOLDER="true">Favorites bar</H3>');
+    expect(html.indexOf('PERSONAL_TOOLBAR_FOLDER')).toBeLessThan(html.indexOf('<H3>page</H3>'));
+  });
+
+  it('keeps tree order and nesting, dividers included', () => {
+    const tags = html.split('\n').map((l) => l.trim()).filter((l) => /^<DT>|^<\/?DL>/.test(l));
+    expect(tags).toEqual([
+      '<DL><p>',
+      '<DT><H3 PERSONAL_TOOLBAR_FOLDER="true">Favorites bar</H3>',
+      '<DL><p>',
+      '<DT><H3>page</H3>',
+      '<DL><p>',
+      '<DT><A HREF="https://a.example.com/?x=1&amp;y=&quot;2&quot;">Q&amp;A &lt;one&gt;</A>',
+      '<DT><H3>Sec</H3>',
+      '<DL><p>',
+      `<DT><A HREF="${DIVIDER_URL}">━━ GRP ━━</A>`,
+      '<DT><A HREF="https://b.example.com">https://b.example.com</A>',
+      '</DL><p>',
+      '</DL><p>',
+      '</DL><p>',
+      '</DL><p>',
+    ]);
   });
 });
