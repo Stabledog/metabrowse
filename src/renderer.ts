@@ -17,6 +17,7 @@ export interface RenderConfig {
   onOpenAll?: (container: HTMLElement) => void;
   onCapture?: () => void;
   onUpdate?: () => void;
+  onSendFavorites?: () => void;
 }
 
 /** Build breadcrumb data from a route path. */
@@ -275,6 +276,11 @@ export function renderPage(
   const wsUpdateBtn = el('button', { class: 'workspace-btn icon-btn', title: 'Update Workspace', disabled: '', tabindex: '-1' }, '🔄');
   wsUpdateBtn.addEventListener('click', () => config.onUpdate?.());
   headerActions.appendChild(wsUpdateBtn);
+
+  // Hidden until barouse is detected (see app.ts)
+  const favoritesBtn = el('button', { class: 'workspace-btn favorites-btn icon-btn', title: 'Send to favorites bar', style: 'display:none', tabindex: '-1' }, '⭐');
+  favoritesBtn.addEventListener('click', () => config.onSendFavorites?.());
+  headerActions.appendChild(favoritesBtn);
 
   headerBar.appendChild(headerActions);
 

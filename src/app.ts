@@ -18,7 +18,7 @@ import { showEditor } from './editor.ts';
 import { showTreePanel } from './tree-panel.ts';
 import { initDropZone, handleSingleLink } from './drop-handler.ts';
 import { startNavigation } from './lifecycle.ts';
-import { detectBarouse, handleOpenAll, handleCapture, handleUpdate, cachePageLines } from './workspace.ts';
+import { detectBarouse, handleOpenAll, handleCapture, handleUpdate, handleSendFavorites, cachePageLines } from './workspace.ts';
 import { escapeHtml, escapeAttr, errorMessage, basename, contentPathFor } from './utils.ts';
 import type { WorkspaceConfig } from './workspace.ts';
 
@@ -259,6 +259,7 @@ function doRender(route: Route, content: string, signal: AbortSignal): void {
     onOpenAll: (container) => handleOpenAll(container, wsConfig),
     onCapture: () => handleCapture(wsConfig),
     onUpdate: () => handleUpdate(wsConfig),
+    onSendFavorites: () => handleSendFavorites(parsed, route),
   });
 
   // Post-render setup
@@ -299,6 +300,9 @@ function doRender(route: Route, content: string, signal: AbortSignal): void {
       if (!available || signal.aborted) return;
       for (const btn of app.querySelectorAll<HTMLButtonElement>('.workspace-btn')) {
         btn.disabled = false;
+      }
+      for (const btn of app.querySelectorAll<HTMLButtonElement>('.favorites-btn')) {
+        btn.style.display = '';
       }
     });
   }

@@ -7,6 +7,9 @@ import { logInfo, logError } from './logging-client.ts';
 import type { Route } from './router.ts';
 import { pushModal, popModal } from './modal-stack.ts';
 import { showToast, errorMessage } from './utils.ts';
+import { buildFavoritesTree, countLinks } from './favorites.ts';
+import type { FavoriteFolder } from './favorites.ts';
+import type { ParsedDocument } from './parser.ts';
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -21,10 +24,11 @@ export interface Tab {
 
 const PING_TIMEOUT_MS = 500;
 const API_TIMEOUT_MS = 5000;
+const FAVORITES_TIMEOUT_MS = 15000;
 
-function sendBarouseMessage<T>(type: string, payload?: unknown): Promise<T> {
+function sendBarouseMessage<T>(type: string, payload?: unknown, timeoutMs?: number): Promise<T> {
   return new Promise((resolve, reject) => {
-    const timeout = type === 'barouse:ping' ? PING_TIMEOUT_MS : API_TIMEOUT_MS;
+    const timeout = timeoutMs ?? (type === 'barouse:ping' ? PING_TIMEOUT_MS : API_TIMEOUT_MS);
 
     const timer = setTimeout(() => {
       cleanup();
@@ -586,5 +590,96 @@ export async function handleUpdate(config: WorkspaceConfig): Promise<void> {
     const msg = errorMessage(err);
     logError(`Workspace: Failed to update: ${msg}`);
     showToast(`Failed to update workspace: ${msg}`);
+  }
+}
+
+// ── Send page to favorites bar ─────────────────────────────────────
+
+type SetFavoritesResult =
+  | { status: 'created'; name: string; linkCount: number }
+  | { status: 'exists'; name: string }
+  | { status: 'rejected' }
+  | { status: 'error'; error: string };
+
+function setFavorites(tree: FavoriteFolder, replace: boolean): Promise<SetFavoritesResult> {
+  return sendBarouseMessage<SetFavoritesResult>('barouse:set-favorites', { tree, replace }, FAVORITES_TIMEOUT_MS);
+}
+
+function showReplaceConfirmModal(name: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'drop-modal-overlay';
+
+    const panel = document.createElement('div');
+    panel.className = 'drop-modal';
+    panel.style.width = '360px';
+
+    const header = document.createElement('div');
+    header.className = 'drop-modal-header';
+    header.textContent = `Replace existing '${name}'?`;
+    panel.appendChild(header);
+
+    const body = document.createElement('div');
+    body.style.cssText = 'padding:8px 14px; font-size:12px; color:#ccc;';
+    body.textContent = `The favorites bar already has a folder named '${name}'. Replacing it keeps its position.`;
+    panel.appendChild(body);
+
+    const form = document.createElement('form');
+    form.className = 'drop-modal-form';
+    form.innerHTML = `
+      <div class="drop-modal-buttons">
+        <button type="submit" class="drop-modal-ok">Replace</button>
+        <button type="button" class="drop-modal-cancel">Cancel</button>
+      </div>
+    `;
+    panel.appendChild(form);
+
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    pushModal(overlay);
+
+    const cancelBtn = panel.querySelector('.drop-modal-cancel') as HTMLButtonElement;
+    cancelBtn.focus();
+
+    function dismiss(result: boolean) {
+      popModal(overlay);
+      overlay.remove();
+      resolve(result);
+    }
+
+    form.addEventListener('submit', (e) => { e.preventDefault(); dismiss(true); });
+    cancelBtn.addEventListener('click', () => dismiss(false));
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) dismiss(false); });
+    overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') dismiss(false); });
+  });
+}
+
+export async function handleSendFavorites(doc: ParsedDocument, route: Route): Promise<void> {
+  const tree = buildFavoritesTree(doc, route.dirPath);
+  if (countLinks(tree.children) === 0) {
+    showToast('No links found on this page');
+    return;
+  }
+  logInfo(`Favorites: Sending '${tree.title}' to favorites bar`);
+  try {
+    let result = await setFavorites(tree, false);
+    if (result?.status === 'exists') {
+      if (!(await showReplaceConfirmModal(tree.title))) return;
+      result = await setFavorites(tree, true);
+    }
+    if (result?.status === 'created') {
+      logInfo(`Favorites: Created '${result.name}' with ${result.linkCount} links`);
+      showToast(`Sent '${result.name}' (${result.linkCount} links) to favorites bar`);
+      return;
+    }
+    const msg = result?.status === 'rejected' ? 'rejected by Barouse (not a Metabrowse site)'
+      : result?.status === 'error' ? result.error
+      : 'no response from Barouse';
+    logError(`Favorites: Failed: ${msg}`);
+    showToast(`Failed to send to favorites bar: ${msg}`);
+  } catch (err) {
+    const msg = errorMessage(err);
+    logError(`Favorites: Failed: ${msg}`);
+    showToast(`Failed to send to favorites bar: ${msg}`);
   }
 }
