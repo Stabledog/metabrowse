@@ -204,7 +204,19 @@ export async function initFileEditor(target: HTMLElement): Promise<void> {
     return true;
   };
 
+  // Framed: barouse marks its editor button while the buffer differs from the
+  // last commit. Posted only when that flips; a new editor starts clean.
+  let reportedDirty = false;
+  const reportDirty = (): void => {
+    if (!framed || state !== 'editing') return;
+    const dirty = toFileText(ved.getEditorContent(), eol) !== fileText;
+    if (dirty === reportedDirty) return;
+    reportedDirty = dirty;
+    window.parent.postMessage({ type: 'barouse:editor-dirty', dirty }, '*');
+  };
+
   const onChange = (): void => {
+    reportDirty();
     if (draftTimer !== null) clearTimeout(draftTimer);
     draftTimer = setTimeout(flushDraft, 500);
   };
@@ -246,6 +258,7 @@ export async function initFileEditor(target: HTMLElement): Promise<void> {
       fileText = newText;
       baseStale = false;
       flushDraft(); // deletes it, unless there were edits during the commit
+      reportDirty();
       showEditorStatus(`Committed to ${ref}`);
     } catch (err) {
       logError(`FileEditor: commit failed: ${errorMessage(err)}`);
@@ -298,6 +311,7 @@ export async function initFileEditor(target: HTMLElement): Promise<void> {
   if (restoreText !== null) {
     ved.setEditorContent(restoreText, { markSaved: false });
     showEditorStatus('Draft restored');
+    reportDirty(); // in case setEditorContent didn't fire onChange
   } else if (draftKept) {
     showEditorStatus('Older draft kept: new drafts are off until you reopen this file and deal with it.', true);
   }
@@ -320,9 +334,15 @@ function offerDraft(
   bar.tabIndex = -1;
   const label = document.createElement('span');
   label.textContent = text;
-  bar.appendChild(label);
+  // With text to copy, the bar is a column (message and buttons, then the
+  // text) that takes most of the screen; see .draft-prompt.with-text.
+  const row = show ? document.createElement('div') : bar;
+  row.appendChild(label);
   let copyFrom: HTMLTextAreaElement | null = null;
   if (show) {
+    bar.classList.add('with-text');
+    row.className = 'draft-prompt-row';
+    bar.appendChild(row);
     copyFrom = document.createElement('textarea');
     copyFrom.className = 'draft-text';
     copyFrom.readOnly = true;
@@ -341,7 +361,7 @@ function offerDraft(
       btn.className = 'draft-prompt-btn';
       btn.innerHTML = `<u>${escapeHtml(name[0])}</u>${escapeHtml(name.slice(1))}`;
       btn.addEventListener('click', () => finish(k));
-      bar.appendChild(btn);
+      row.appendChild(btn);
     }
     bar.addEventListener('keydown', (e) => {
       e.stopPropagation();
