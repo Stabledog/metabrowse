@@ -1,4 +1,4 @@
-/** Type declarations for veditor.web runtime import. */
+/** Type declarations for veditor.web runtime import (0.45 and later; the file editor checks VERSION). */
 
 export const VERSION: string;
 
@@ -8,7 +8,7 @@ export interface DocEntry {
 }
 
 export interface VEditorCallbacks {
-  /** Resolve false when nothing was saved (cancelled or failed): the buffer stays dirty. veditor < 0.45 ignores the value. */
+  /** Resolve false when nothing was saved (cancelled or failed): the buffer stays dirty. */
   onSave: () => Promise<void | boolean>;
   onQuit: () => void;
   isAppDirty?: () => boolean;
@@ -47,8 +47,8 @@ export function exitInsertMode(): void;
 export function executeExCommand(cmd: string): void;
 export function toggleVimMode(): boolean;
 export function isVimMode(): boolean;
-/** Resolves whether the save happened (veditor >= 0.45; older versions resolve undefined). */
-export function requestSave(): Promise<boolean | void>;
+/** Resolves whether the save happened. */
+export function requestSave(): Promise<boolean>;
 export function requestQuit(force?: boolean): void;
 export function hashTarget(url: string): string;
 export function getAutoSaveMs(): number;

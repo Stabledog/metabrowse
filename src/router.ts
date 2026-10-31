@@ -1,6 +1,7 @@
 /** Hash-based router. Maps #/path → text/path/README.md */
 
 import { contentPathFor } from './utils.ts';
+import { isBlobHash } from './blob-route.ts';
 
 /** 'blob' is the file-editor route (file-editor.ts), reserved here so it's never read as a content path. */
 export type RouteKind = 'browse' | 'edit' | 'blob';
@@ -19,14 +20,14 @@ let handler: RouteHandler | null = null;
 
 /** Parse the current hash into a Route. */
 export function parseHash(hash: string): Route {
+  // main.ts sends these to the file editor before the app starts.
+  if (isBlobHash(hash)) return { kind: 'blob', dirPath: '', contentPath: '' };
+
   // Remove leading # and /
   let path = hash.replace(/^#\/?/, '');
 
   // Detect edit route
   let kind: RouteKind = 'browse';
-  if (path.startsWith('blob/') || path === 'blob') {
-    return { kind: 'blob', dirPath: '', contentPath: '' };
-  }
   if (path.startsWith('edit/')) {
     kind = 'edit';
     path = path.slice('edit/'.length);

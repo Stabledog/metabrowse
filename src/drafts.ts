@@ -16,6 +16,8 @@ export interface Draft {
   baseSha: string;
   /** Epoch ms. */
   savedAt: number;
+  /** The editor instance that wrote it (see newInstanceId). */
+  instance: string;
 }
 
 export interface DraftLocation {
@@ -26,13 +28,23 @@ export interface DraftLocation {
   path: string;
 }
 
+/** The ref is encoded so that `feature/x` + `a.md` and `feature` + `x/a.md` get different keys. */
 export function draftKey(loc: DraftLocation): string {
-  return `${DRAFT_PREFIX}${loc.host}/${loc.owner}/${loc.repo}/${loc.ref}/${loc.path}`;
+  return `${DRAFT_PREFIX}${loc.host}/${loc.owner}/${loc.repo}/${encodeURIComponent(loc.ref)}/${loc.path}`;
+}
+
+/**
+ * An id for one open editor. The same file can be open twice (sidebar and
+ * popup), and they share a key; each must only delete a draft it wrote.
+ */
+export function newInstanceId(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function isDraft(v: unknown): v is Draft {
   const d = v as Draft;
-  return !!d && typeof d.text === 'string' && typeof d.baseSha === 'string' && typeof d.savedAt === 'number';
+  return !!d && typeof d.text === 'string' && typeof d.baseSha === 'string' && typeof d.savedAt === 'number'
+    && typeof d.instance === 'string';
 }
 
 export function readDraft(storage: Storage, key: string): Draft | null {
@@ -54,6 +66,11 @@ export function writeDraft(storage: Storage, key: string, draft: Draft): boolean
   } catch {
     return false;
   }
+}
+
+/** Delete the draft only if this instance wrote it. */
+export function removeOwnDraft(storage: Storage, key: string, instance: string): void {
+  if (readDraft(storage, key)?.instance === instance) storage.removeItem(key);
 }
 
 /** Delete drafts older than maxAgeMs, and any that don't parse. Returns how many were deleted. */

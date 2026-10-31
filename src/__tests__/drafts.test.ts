@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  DRAFT_MAX_AGE_MS, draftKey, readDraft, writeDraft, pruneDrafts, draftDecision,
+  DRAFT_MAX_AGE_MS, draftKey, readDraft, writeDraft, removeOwnDraft, pruneDrafts, draftDecision, newInstanceId,
 } from '../drafts.ts';
 import type { Draft } from '../drafts.ts';
 
@@ -21,12 +21,33 @@ class MemoryStorage implements Storage {
 }
 
 const DAY = 24 * 60 * 60 * 1000;
-const draft = (over: Partial<Draft> = {}): Draft => ({ text: 'edited', baseSha: 's1', savedAt: 1000, ...over });
+const draft = (over: Partial<Draft> = {}): Draft => ({ text: 'edited', baseSha: 's1', savedAt: 1000, instance: 'me', ...over });
 
 describe('draftKey', () => {
-  it('is veditor-draft:<host>/<owner>/<repo>/<ref>/<path>', () => {
+  it('is veditor-draft:<host>/<owner>/<repo>/<encoded ref>/<path>', () => {
     expect(draftKey({ host: 'ghes.example.com', owner: 'o', repo: 'r', ref: 'feature/x', path: 'docs/a.md' }))
-      .toBe('veditor-draft:ghes.example.com/o/r/feature/x/docs/a.md');
+      .toBe('veditor-draft:ghes.example.com/o/r/feature%2Fx/docs/a.md');
+  });
+
+  it('keeps the ref/path split', () => {
+    const loc = { host: 'h', owner: 'o', repo: 'r' };
+    expect(draftKey({ ...loc, ref: 'feature/x', path: 'a.md' })).not.toBe(draftKey({ ...loc, ref: 'feature', path: 'x/a.md' }));
+  });
+});
+
+describe('removeOwnDraft', () => {
+  it('deletes only a draft this instance wrote', () => {
+    const s = new MemoryStorage();
+    writeDraft(s, 'k', draft({ instance: 'other' }));
+    removeOwnDraft(s, 'k', 'me');
+    expect(readDraft(s, 'k')).not.toBeNull();
+    writeDraft(s, 'k', draft());
+    removeOwnDraft(s, 'k', 'me');
+    expect(s.getItem('k')).toBeNull();
+  });
+
+  it('gives each editor its own id', () => {
+    expect(newInstanceId()).not.toBe(newInstanceId());
   });
 });
 
