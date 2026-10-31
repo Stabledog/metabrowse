@@ -85,10 +85,13 @@ The SPA implements a modular pipeline that runs entirely in the browser:
 - Loaded at runtime from GitHub Pages via dynamic `import()`
 
 ### File Editor Route (`file-editor.ts`, `blob-route.ts`)
-- `#/blob/<owner>/<repo>/<ref...>/<path...>` edits one file on any repo the token can reach. `main.ts` dispatches to it before `init()`, so it never needs a content repo; the browse router reserves `blob/` like `edit/`
+- `#/blob/<owner>/<repo>/<ref...>/<path...>` edits one file on any repo the token can reach. `main.ts` dispatches to it before `init()`, so it never needs a content repo; the browse router reserves `blob/` like `edit/`. Both use `isBlobHash`: if they disagreed, `handleRoute`'s reload would loop
+- Needs veditor >= 0.45 (`onSave` result, `onChange`); `initFileEditor` refuses older versions
 - The ref is the shortest prefix of the segments that is a branch; anything else (SHA, tag) is refused
 - `:w` → commit-message bar → PUT with `branch` and `sha`; `onSave` returns `false` when cancelled or failed so veditor keeps the buffer dirty. Autosave is off
-- Opened by barouse in a popup or a sidebar iframe: `onQuit` closes the window, or posts `barouse:editor-closed` to the parent when framed; the parent can send `barouse:request-quit`
+- Opened by barouse in a popup or a sidebar iframe: `onQuit` closes the window, or posts `barouse:editor-closed` to the parent when framed; the parent can send `barouse:request-quit`, which is honoured in every state (loading, editing, or an error shown)
+- One commit at a time: a `:w` while the commit bar is open or a PUT is in flight returns `false`
+- `file-editor.test.ts` runs under jsdom against `fake-veditor.ts`, a stand-in with veditor's 0.45 save/quit contract
 - Pure logic lives in `blob-route.ts` and is unit tested
 
 ### Supporting Modules

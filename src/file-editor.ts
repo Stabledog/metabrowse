@@ -10,6 +10,7 @@ import { ApiError, DEFAULT_HOST, branchExists, checkRepo, getFileContent, update
 import { loadVeditor, showEditorStatus } from './editor.ts';
 import {
   parseBlobHash, resolveRef, detectLineEndings, toEditorText, toFileText, describeSaveError,
+  veditorSupported, MIN_VEDITOR,
 } from './blob-route.ts';
 import { escapeHtml, errorMessage, basename } from './utils.ts';
 import { logInfo, logError } from './logging-client.ts';
@@ -28,13 +29,44 @@ function showMessage(target: HTMLElement, title: string, detailHtml = ''): void 
   `;
 }
 
+/** Leave the editor: tell barouse when framed, otherwise close the window. */
+function closeEditor(target: HTMLElement): void {
+  if (framed) {
+    window.parent.postMessage({ type: 'barouse:editor-closed' }, '*');
+    return;
+  }
+  window.close();
+  // Still here: the tab wasn't opened by script, so it can't close itself.
+  showMessage(target, 'Editor closed', 'You can close this tab.');
+}
+
 export async function initFileEditor(target: HTMLElement): Promise<void> {
   // Editing the hash in place means a different file (or the app): start over.
   window.addEventListener('hashchange', () => location.reload());
 
+  // Barouse can ask us to quit at any point. Only a live editor has anything to
+  // confirm; before that (still loading) we close as soon as loading ends, and
+  // after it (an error shown, or already closed) we close straight away.
+  let state: 'loading' | 'editing' | 'done' = 'loading';
+  let quitRequested = false;
+  let ved: typeof import('./veditor.d.ts');
+  if (framed) {
+    window.addEventListener('message', (e: MessageEvent) => {
+      if (e.source !== window.parent || e.data?.type !== 'barouse:request-quit') return;
+      if (state === 'editing') ved.requestQuit();
+      else if (state === 'done') closeEditor(target);
+      else quitRequested = true;
+    });
+  }
+  const fail = (title: string, detailHtml = ''): void => {
+    state = 'done';
+    showMessage(target, title, detailHtml);
+    if (quitRequested) closeEditor(target);
+  };
+
   const parsed = parseBlobHash(location.hash);
   if (!parsed) {
-    showMessage(target, 'Not a file URL', 'Expected <code>#/blob/&lt;owner&gt;/&lt;repo&gt;/&lt;branch&gt;/&lt;path&gt;</code>.');
+    fail('Not a file URL', 'Expected <code>#/blob/&lt;owner&gt;/&lt;repo&gt;/&lt;branch&gt;/&lt;path&gt;</code>.');
     return;
   }
   const { owner, repo } = parsed;
@@ -42,13 +74,12 @@ export async function initFileEditor(target: HTMLElement): Promise<void> {
   const token = localStorage.getItem(LS_TOKEN) || '';
   const signIn = `<a href="${escapeHtml(import.meta.env.BASE_URL)}" target="_blank" rel="noopener">Sign in to metabrowse</a> once, then reload.`;
   if (!token) {
-    showMessage(target, 'Not signed in', signIn);
+    fail('Not signed in', signIn);
     return;
   }
 
   target.innerHTML = `<div class="editor-loading">Loading editor...</div>`;
 
-  let ved: typeof import('./veditor.d.ts');
   let ref: string;
   let path: string;
   let sha: string;
@@ -56,9 +87,14 @@ export async function initFileEditor(target: HTMLElement): Promise<void> {
   try {
     const [v] = await Promise.all([loadVeditor(), checkRepo(host, token, owner, repo)]);
     ved = v;
+    if (!veditorSupported(ved.VERSION)) {
+      fail(`veditor ${String(ved.VERSION)} is too old`,
+        `The file editor needs veditor ${MIN_VEDITOR.join('.')} or newer. Redeploy veditor.web.`);
+      return;
+    }
     const split = await resolveRef(parsed.rest, name => branchExists(host, token, owner, repo, name));
     if (!split) {
-      showMessage(target, `Not a branch: ${parsed.rest[0]}`, 'Open the file from a branch to edit it.');
+      fail(`Not a branch: ${parsed.rest[0]}`, 'Open the file from a branch to edit it.');
       return;
     }
     ({ ref, path } = split);
@@ -68,18 +104,18 @@ export async function initFileEditor(target: HTMLElement): Promise<void> {
   } catch (err) {
     logError(`FileEditor: load failed: ${errorMessage(err)}`);
     if (err instanceof ApiError && err.status === 401) {
-      showMessage(target, 'Token rejected', signIn);
+      fail('Token rejected', signIn);
     } else if (err instanceof ApiError && err.status === 404) {
-      showMessage(target, `Not found: ${owner}/${repo}`, 'The repo or file doesn\'t exist, or your token can\'t read it.');
+      fail(`Not found: ${owner}/${repo}`, 'The repo or file doesn\'t exist, or your token can\'t read it.');
     } else {
-      showMessage(target, 'Failed to load editor', escapeHtml(errorMessage(err)));
+      fail('Failed to load editor', escapeHtml(errorMessage(err)));
     }
     return;
   }
 
   const eol = detectLineEndings(fileText);
   if (eol === 'mixed') {
-    showMessage(target, 'Mixed line endings',
+    fail('Mixed line endings',
       `${escapeHtml(path)} mixes CRLF and LF (or has lone CRs). Saving from the editor would rewrite them, so it can't be edited here.`);
     return;
   }
@@ -102,7 +138,25 @@ export async function initFileEditor(target: HTMLElement): Promise<void> {
   `;
   const screen = target.querySelector<HTMLElement>('.editor-screen')!;
 
+  // One commit at a time: a second :w would send a stale sha, or replace the
+  // commit bar and leave the first save's promise hanging.
+  let saving = false;
+
   const onSave = async (): Promise<boolean | void> => {
+    if (saving) {
+      screen.querySelector<HTMLInputElement>('.commit-prompt input')?.focus();
+      showEditorStatus('A commit is already in progress');
+      return false;
+    }
+    saving = true;
+    try {
+      return await commit();
+    } finally {
+      saving = false;
+    }
+  };
+
+  const commit = async (): Promise<boolean | void> => {
     const newText = toFileText(ved.getEditorContent(), eol);
     if (newText === fileText) {
       showEditorStatus('No changes');
@@ -131,22 +185,10 @@ export async function initFileEditor(target: HTMLElement): Promise<void> {
   };
 
   const onQuit = (): void => {
+    state = 'done';
     ved.destroyEditor();
-    if (framed) {
-      window.parent.postMessage({ type: 'barouse:editor-closed' }, '*');
-      return;
-    }
-    window.close();
-    // Still here: the tab wasn't opened by script, so it can't close itself.
-    showMessage(target, 'Editor closed', 'You can close this tab.');
+    closeEditor(target);
   };
-
-  if (framed) {
-    window.addEventListener('message', (e: MessageEvent) => {
-      if (e.source !== window.parent || e.data?.type !== 'barouse:request-quit') return;
-      ved.requestQuit();
-    });
-  }
 
   ved.createEditor(document.getElementById('editor-container')!, toEditorText(fileText, eol), { onSave, onQuit }, {
     storagePrefix: 'metabrowse',
@@ -154,6 +196,8 @@ export async function initFileEditor(target: HTMLElement): Promise<void> {
     initialBufferId: path,
     initialBufferLabel: name,
   });
+  state = 'editing';
+  if (quitRequested) ved.requestQuit();
 }
 
 /**

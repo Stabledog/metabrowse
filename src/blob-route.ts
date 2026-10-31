@@ -2,7 +2,9 @@
 
 import { ApiError } from './github.ts';
 
-export const BLOB_PREFIX = '#/blob/';
+// The router strips an optional leading slash (#blob/... and #/blob/... are the
+// same route), so this must too, or main.ts and the router disagree.
+const BLOB_RE = /^#\/?blob(\/|$)/;
 
 export interface BlobHash {
   owner: string;
@@ -11,8 +13,9 @@ export interface BlobHash {
   rest: string[];
 }
 
+/** The one test for the file-editor route, used by main.ts and the router alike. */
 export function isBlobHash(hash: string): boolean {
-  return hash.startsWith(BLOB_PREFIX);
+  return BLOB_RE.test(hash);
 }
 
 /**
@@ -22,7 +25,7 @@ export function isBlobHash(hash: string): boolean {
  */
 export function parseBlobHash(hash: string): BlobHash | null {
   if (!isBlobHash(hash)) return null;
-  const segments = hash.slice(BLOB_PREFIX.length).split(/[?#]/)[0].split('/').filter(Boolean);
+  const segments = hash.replace(BLOB_RE, '').split(/[?#]/)[0].split('/').filter(Boolean);
   let decoded: string[];
   try {
     decoded = segments.map(decodeURIComponent);
@@ -53,6 +56,19 @@ export async function resolveRef(
     if (await isBranch(ref)) return { ref, path: rest.slice(n).join('/') };
   }
   return null;
+}
+
+// ── veditor version ────────────────────────────────────────────────
+
+/** The file editor relies on veditor 0.45's onSave result and onChange. */
+export const MIN_VEDITOR = [0, 45] as const;
+
+/** Whether a veditor VERSION string ("0.45.0") is new enough. Anything unparseable is not. */
+export function veditorSupported(version: unknown): boolean {
+  const m = typeof version === 'string' ? /^(\d+)\.(\d+)(\.|$)/.exec(version) : null;
+  if (!m) return false;
+  const [major, minor] = [Number(m[1]), Number(m[2])];
+  return major > MIN_VEDITOR[0] || (major === MIN_VEDITOR[0] && minor >= MIN_VEDITOR[1]);
 }
 
 // ── Line endings ────────────────────────────────────────────────────
@@ -87,11 +103,12 @@ export interface SaveContext {
   ref: string;
   /** The sha the failed PUT was based on. */
   baseSha: string;
-  /** Re-read the file's current sha on the branch, bypassing the HTTP cache. */
+  /** Re-read the file's current sha on the branch, bypassing the HTTP cache. Throws ApiError. */
   currentSha: () => Promise<string>;
 }
 
 export const UPSTREAM_CHANGED = 'File changed upstream since you opened it. Copy your edits and reload.';
+export const UPSTREAM_DELETED = 'File was deleted or moved upstream since you opened it. Copy your edits.';
 
 /**
  * The message for a failed commit. 409/422 can mean a sha mismatch or a branch
@@ -101,11 +118,15 @@ export async function describeSaveError(err: unknown, ctx: SaveContext): Promise
   if (!(err instanceof ApiError)) return `Save failed: ${err instanceof Error ? err.message : String(err)}`;
   const { status, githubMessage } = err;
   if (status === 409 || status === 422) {
-    let changed = false;
+    let current: string;
     try {
-      changed = (await ctx.currentSha()) !== ctx.baseSha;
-    } catch { /* can't tell: report GitHub's message */ }
-    if (changed) return UPSTREAM_CHANGED;
+      current = await ctx.currentSha();
+    } catch (recheck) {
+      if (recheck instanceof ApiError && recheck.status === 404) return UPSTREAM_DELETED;
+      const why = recheck instanceof Error ? recheck.message : String(recheck);
+      return `Commit failed (${githubMessage}), and couldn't re-check the file: ${why}`;
+    }
+    if (current !== ctx.baseSha) return UPSTREAM_CHANGED;
     return `Can't commit to ${ctx.ref}: ${githubMessage}`;
   }
   if (status === 403 || status === 404) {

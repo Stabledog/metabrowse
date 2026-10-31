@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   isBlobHash, parseBlobHash, resolveRef,
   detectLineEndings, toEditorText, toFileText,
-  describeSaveError, UPSTREAM_CHANGED,
+  describeSaveError, UPSTREAM_CHANGED, UPSTREAM_DELETED, veditorSupported,
 } from '../blob-route.ts';
 import type { SaveContext } from '../blob-route.ts';
 import { ApiError } from '../github.ts';
@@ -30,11 +30,25 @@ describe('parseBlobHash', () => {
     expect(parseBlobHash('#/blob/o/r/main/%E0%A4%A')).toBeNull(); // malformed escape
   });
 
-  it('only matches #/blob/', () => {
+  it('only matches the blob route', () => {
     expect(isBlobHash('#/blob/o/r/main/a.md')).toBe(true);
     expect(isBlobHash('#/edit/blob')).toBe(false);
     expect(isBlobHash('#/blobs')).toBe(false);
     expect(parseBlobHash('#/edit/o/r/main/a.md')).toBeNull();
+  });
+
+  it('accepts #blob/ like the router does', () => {
+    expect(parseBlobHash('#blob/o/r/main/a.md')).toEqual({ owner: 'o', repo: 'r', rest: ['main', 'a.md'] });
+  });
+});
+
+describe('main.ts and the router agree', () => {
+  // main.ts starts the file editor when isBlobHash is true, else the app, whose
+  // router reloads on a 'blob' route. If they ever disagree, that's a reload loop.
+  const hashes = ['#/blob/o/r/main/a.md', '#/blob', '#/blob/', '#blob', '#blob/o/r/main/a.md',
+    '#/blobby', '#/edit/blob', '#/', '', '#/teach/CPP', '#blob%2F'];
+  it.each(hashes)('%s', (hash) => {
+    expect(isBlobHash(hash)).toBe(parseHash(hash).kind === 'blob');
   });
 });
 
@@ -113,6 +127,24 @@ describe('line endings', () => {
   });
 });
 
+// ── veditorSupported ────────────────────────────────────────────────
+
+describe('veditorSupported', () => {
+  it('needs 0.45 or newer', () => {
+    expect(veditorSupported('0.45.0')).toBe(true);
+    expect(veditorSupported('0.46.1')).toBe(true);
+    expect(veditorSupported('1.0.0')).toBe(true);
+    expect(veditorSupported('0.44.9')).toBe(false);
+    expect(veditorSupported('0.4.50')).toBe(false);
+  });
+
+  it('refuses anything it can\'t read', () => {
+    expect(veditorSupported(undefined)).toBe(false);
+    expect(veditorSupported('')).toBe(false);
+    expect(veditorSupported('dev')).toBe(false);
+  });
+});
+
 // ── describeSaveError ───────────────────────────────────────────────
 
 describe('describeSaveError', () => {
@@ -131,8 +163,13 @@ describe('describeSaveError', () => {
   it('409/422 with the same sha: GitHub\'s own reason, never a guess', async () => {
     expect(await describeSaveError(new ApiError(409, 'Protected branch update failed'), ctx(same)))
       .toBe("Can't commit to main: Protected branch update failed");
+  });
+
+  it('409/422 when the re-check fails: says so, never blames the branch', async () => {
     expect(await describeSaveError(new ApiError(422, 'Invalid request'), ctx(unreadable)))
-      .toBe("Can't commit to main: Invalid request");
+      .toBe("Commit failed (Invalid request), and couldn't re-check the file: offline");
+    const gone = async () => { throw new ApiError(404, 'Not Found'); };
+    expect(await describeSaveError(new ApiError(409, 'x'), ctx(gone))).toBe(UPSTREAM_DELETED);
   });
 
   it('403/404: no write access', async () => {
