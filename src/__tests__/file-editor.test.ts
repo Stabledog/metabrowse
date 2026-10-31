@@ -231,6 +231,13 @@ describe('file editor: saving', () => {
 });
 
 describe('file editor: quitting in a window', () => {
+  it('posts nothing about dirtiness when not framed', async () => {
+    const post = vi.spyOn(window, 'postMessage');
+    await open();
+    fake.type('x');
+    expect(post).not.toHaveBeenCalled();
+  });
+
   it('closes the window on :q', async () => {
     await open();
     fake.requestQuit();
@@ -266,11 +273,40 @@ describe('file editor: quitting in a barouse frame', () => {
   it('request-quit from the parent goes through veditor, so a dirty buffer is confirmed', async () => {
     await open();
     fake.type('x');
+    posted.length = 0;
     requestQuit(parentWin);
     expect(fake.quitBlocked).toBe(true);
     expect(posted).toEqual([]);
     fake.discardAndQuit();
     expect(posted).toEqual([{ type: 'barouse:editor-closed' }]);
+  });
+
+  it('tells the parent when the buffer goes dirty and clean, once per change', async () => {
+    await open();
+    expect(posted).toEqual([]); // a new editor is clean
+    fake.type('x');
+    fake.type('y');
+    expect(posted).toEqual([{ type: 'barouse:editor-dirty', dirty: true }]);
+    fake.setEditorContent('one\ntwo\n', { markSaved: false }); // edited back to the file
+    expect(posted.at(-1)).toEqual({ type: 'barouse:editor-dirty', dirty: false });
+    fake.type('z');
+    posted.length = 0;
+    putError = { status: 409, message: 'Protected branch update failed' };
+    expect(await save()).toBe(false);
+    expect(posted).toEqual([]); // still dirty
+    expect(await save()).toBe(true);
+    expect(posted).toEqual([{ type: 'barouse:editor-dirty', dirty: false }]);
+  });
+
+  it('a restored draft is reported dirty', async () => {
+    const key = draftKey({ host: DEFAULT_HOST, owner: 'o', repo: 'r', ref: 'feature/x', path: 'docs/a.md' });
+    writeDraft(localStorage, key, { text: 'one\ntwo\ndraft\n', baseSha: 's1', savedAt: Date.now(), instance: 'old' });
+    location.hash = '#/blob/o/r/feature/x/docs/a.md';
+    const opening = initFileEditor(app());
+    await vi.waitFor(() => expect(document.querySelector('.draft-prompt')).not.toBeNull());
+    document.querySelector('.draft-prompt')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'r', bubbles: true }));
+    await opening;
+    expect(posted).toEqual([{ type: 'barouse:editor-dirty', dirty: true }]);
   });
 
   it('ignores request-quit from any other window', async () => {
@@ -360,6 +396,11 @@ describe('file editor: drafts', () => {
     const { opening } = await openWithPrompt();
     expect(promptBar()!.textContent).toMatch(/based on an older version/);
     expect(fake.isOpen()).toBe(false); // nothing to type into until it's answered
+    // Laid out as a column that fills the screen (style.css): message and buttons, then the text.
+    expect(promptBar()!.classList.contains('with-text')).toBe(true);
+    expect([...promptBar()!.children].map(el => el.className)).toEqual(['draft-prompt-row', 'draft-text']);
+    expect(promptBar()!.querySelectorAll('.draft-prompt-row button')).toHaveLength(2);
+    expect(document.getElementById('editor-container')!.childNodes).toHaveLength(0); // :empty, so hidden
     const text = document.querySelector<HTMLTextAreaElement>('.draft-text')!;
     expect(text.readOnly).toBe(true);
     expect(text.value).toBe('one\ntwo\nmine\n');
@@ -409,6 +450,7 @@ describe('file editor: drafts', () => {
     put();
     const { opening } = await openWithPrompt();
     expect(promptBar()!.textContent).toMatch(/Unsaved draft/);
+    expect(promptBar()!.classList.contains('with-text')).toBe(false); // nothing to copy: a plain bar
     pressInBar('Enter');
     await opening;
     expect(fake.getEditorContent()).toBe('one\ntwo\ndraft\n');
