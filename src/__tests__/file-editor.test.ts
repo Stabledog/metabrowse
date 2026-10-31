@@ -109,6 +109,9 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
+  // pagehide makes each editor flush, which cancels its pending draft timer; left
+  // running, it fires in a later test and writes a draft that test can't delete.
+  window.dispatchEvent(new Event('pagehide'));
   for (const [type, fn] of listeners.splice(0)) window.removeEventListener(type, fn);
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -193,6 +196,20 @@ describe('file editor: saving', () => {
     pressInPrompt('Enter');
     expect(await first).toBe(true);
     expect(puts).toHaveLength(1);
+  });
+
+  it('focuses the commit bar after the vim ex dialog hands focus back to the editor', async () => {
+    await open();
+    fake.type('x');
+    const done = fake.requestSave();
+    // What the vim ex dialog does once :w returns: refocus the editor.
+    const editorStandIn = document.createElement('button');
+    document.body.appendChild(editorStandIn);
+    editorStandIn.focus();
+    await tick();
+    expect(document.activeElement).toBe(commitInput());
+    pressInPrompt('Enter');
+    expect(await done).toBe(true);
   });
 
   it('refuses a second :w during the PUT, so it never sends a stale sha', async () => {

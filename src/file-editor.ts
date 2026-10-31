@@ -379,6 +379,14 @@ function promptCommitMessage(screen: HTMLElement, defaultMessage: string): Promi
   input.value = defaultMessage;
   input.focus();
   input.select();
+  // :w runs inside the vim ex dialog, which refocuses the editor after the
+  // command returns, taking focus back from the bar; reclaim it on the next tick.
+  setTimeout(() => {
+    if (bar.isConnected && document.activeElement !== input) {
+      input.focus();
+      input.select();
+    }
+  }, 0);
 
   return new Promise((resolve) => {
     const finish = (result: string | null) => {

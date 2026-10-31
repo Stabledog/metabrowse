@@ -742,6 +742,10 @@ body:has(.editor-screen) {
 .editor-screen #editor-container {
   flex: 1;
   overflow: hidden;
+  /* veditor's .veditor-mode-toggle is position:absolute at bottom-left. Anchor it
+     to the editor and keep a strip below the text for it, so it never covers text. */
+  position: relative;
+  padding-bottom: 2rem;
 }
 
 .editor-loading {
