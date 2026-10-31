@@ -91,7 +91,7 @@ export interface SaveContext {
   currentSha: () => Promise<string>;
 }
 
-export const UPSTREAM_CHANGED = 'File changed upstream since you opened it. Copy your edits and reload.';
+export const UPSTREAM_CHANGED = 'File changed upstream since you opened it. Reload; your edits are kept as a draft.';
 
 /**
  * The message for a failed commit. 409/422 can mean a sha mismatch or a branch

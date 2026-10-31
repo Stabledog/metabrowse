@@ -65,6 +65,7 @@ Push to `main` — GitHub Actions builds and deploys to gh-pages automatically.
 - **Browser tab reuse**: External URLs get deterministic hash-based targets
 - **In-browser editor**: Click "Edit" (or press `e`) to edit content with vim keybindings via veditor.web
 - **Edit any file**: `#/blob/<owner>/<repo>/<branch>/<path>` (the tail of a GitHub blob URL) opens that one file in veditor; `:w` asks for a commit message and commits to the branch. Uses the same token as the app, and needs no content repo. Branches only (SHAs and tags are refused); UTF-8 text up to 1 MB; CRLF files keep CRLF; files with mixed line endings are refused. Autosave is off.
+  - **Drafts**: while the buffer differs from the last commit, its text is kept in `localStorage` (`veditor-draft:<host>/<owner>/<repo>/<branch>/<path>`), so closing the sidebar or window, or a crash, costs a restore prompt instead of the work. Reopening offers *restore* (same file version) or *copy to clipboard* (the file changed upstream; a stale draft is never loaded into the editor). Drafts are deleted on commit and on quit, and pruned after 30 days. Note: like the token, drafts of private files sit in origin storage that every Pages site on the host can read.
 - **Search**: Local in-page filter (`/`) and global cross-page search (`Ctrl+K`)
 - **Favicons**: Auto-loaded for http/https links with localStorage caching
 - **Keyboard shortcuts**: `/` search, `Ctrl+K` global search, `e` edit, `c` collapse/restore, `r` reload
@@ -127,6 +128,7 @@ metabrowse/
 │   ├── editor.ts        # Editor view (veditor.web)
 │   ├── file-editor.ts   # #/blob/ route: edit any file on a branch
 │   ├── blob-route.ts    # #/blob/ parsing, ref resolution, line endings, save errors
+│   ├── drafts.ts        # #/blob/ local drafts: storage, pruning, restore decision
 │   ├── cache.ts         # localStorage caching
 │   ├── router.ts        # Hash-based routing
 │   ├── veditor.d.ts     # veditor.web type declarations

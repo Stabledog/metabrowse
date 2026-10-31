@@ -89,7 +89,8 @@ The SPA implements a modular pipeline that runs entirely in the browser:
 - The ref is the shortest prefix of the segments that is a branch; anything else (SHA, tag) is refused
 - `:w` → commit-message bar → PUT with `branch` and `sha`; `onSave` returns `false` when cancelled or failed so veditor keeps the buffer dirty. Autosave is off
 - Opened by barouse in a popup or a sidebar iframe: `onQuit` closes the window, or posts `barouse:editor-closed` to the parent when framed; the parent can send `barouse:request-quit`
-- Pure logic lives in `blob-route.ts` and is unit tested
+- Drafts (`drafts.ts`): veditor's `onChange` → debounced `localStorage` write, also on `pagehide`; deleted on commit and quit. A draft made on an older sha is never loaded into the buffer, only offered for copying
+- Pure logic lives in `blob-route.ts` and `drafts.ts` and is unit tested
 
 ### Supporting Modules
 - **`github.ts`** — GitHub API client (token validation, tree fetching, content retrieval)

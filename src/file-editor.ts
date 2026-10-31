@@ -9,8 +9,10 @@
 import { ApiError, DEFAULT_HOST, branchExists, checkRepo, getFileContent, updateFileContent } from './github.ts';
 import { loadVeditor, showEditorStatus } from './editor.ts';
 import {
-  parseBlobHash, resolveRef, detectLineEndings, toEditorText, toFileText, describeSaveError,
+  parseBlobHash, resolveRef, detectLineEndings, toEditorText, toFileText, describeSaveError, UPSTREAM_CHANGED,
 } from './blob-route.ts';
+import { draftKey, readDraft, writeDraft, pruneDrafts, draftDecision } from './drafts.ts';
+import type { Draft } from './drafts.ts';
 import { escapeHtml, errorMessage, basename } from './utils.ts';
 import { logInfo, logError } from './logging-client.ts';
 
@@ -102,6 +104,31 @@ export async function initFileEditor(target: HTMLElement): Promise<void> {
   `;
   const screen = target.querySelector<HTMLElement>('.editor-screen')!;
 
+  // --- Drafts: written while the buffer differs from the last commit ---
+
+  const key = draftKey({ host, owner, repo, ref, path });
+  let draftTimer: ReturnType<typeof setTimeout> | null = null;
+  // True while an existing draft is being offered, or was kept: writing now would overwrite it.
+  let draftsPaused = false;
+  let closed = false;
+
+  const flushDraft = (): void => {
+    if (draftTimer !== null) { clearTimeout(draftTimer); draftTimer = null; }
+    if (draftsPaused || closed) return;
+    const text = ved.getEditorContent();
+    if (toFileText(text, eol) === fileText) {
+      localStorage.removeItem(key);
+    } else if (!writeDraft(localStorage, key, { text, baseSha: sha, savedAt: Date.now() })) {
+      showEditorStatus('Draft not saved: storage full', true);
+    }
+  };
+
+  const onChange = (): void => {
+    if (draftTimer !== null) clearTimeout(draftTimer);
+    draftTimer = setTimeout(flushDraft, 500);
+  };
+  window.addEventListener('pagehide', flushDraft);
+
   const onSave = async (): Promise<boolean | void> => {
     const newText = toFileText(ved.getEditorContent(), eol);
     if (newText === fileText) {
@@ -118,19 +145,27 @@ export async function initFileEditor(target: HTMLElement): Promise<void> {
       showEditorStatus('Committing...');
       sha = await updateFileContent(host, token, owner, repo, path, newText, sha, message, { branch: ref });
       fileText = newText;
+      flushDraft(); // deletes it, unless there were edits during the commit
       showEditorStatus(`Committed to ${ref}`);
     } catch (err) {
       logError(`FileEditor: commit failed: ${errorMessage(err)}`);
       const baseSha = sha;
-      showEditorStatus(await describeSaveError(err, {
+      let msg = await describeSaveError(err, {
         owner, repo, ref, baseSha,
         currentSha: async () => (await getFileContent(host, token, owner, repo, path, { ref, noStore: true })).sha,
-      }), true);
+      });
+      flushDraft();
+      if (msg === UPSTREAM_CHANGED && draftsPaused) msg = 'File changed upstream since you opened it. Copy your edits and reload.';
+      showEditorStatus(msg, true);
       return false;
     }
   };
 
   const onQuit = (): void => {
+    // Only reached when clean, after Discard, or :q!: the draft goes too (unless it's an older one being kept).
+    closed = true;
+    if (draftTimer !== null) { clearTimeout(draftTimer); draftTimer = null; }
+    if (!draftsPaused) localStorage.removeItem(key);
     ved.destroyEditor();
     if (framed) {
       window.parent.postMessage({ type: 'barouse:editor-closed' }, '*');
@@ -148,11 +183,92 @@ export async function initFileEditor(target: HTMLElement): Promise<void> {
     });
   }
 
-  ved.createEditor(document.getElementById('editor-container')!, toEditorText(fileText, eol), { onSave, onQuit }, {
+  const editorText = toEditorText(fileText, eol);
+  ved.createEditor(document.getElementById('editor-container')!, editorText, { onSave, onQuit, onChange }, {
     storagePrefix: 'metabrowse',
     autoSaveMs: 0, // onSave commits to someone's repo: never on a timer
     initialBufferId: path,
     initialBufferLabel: name,
+  });
+
+  // --- An existing draft? ---
+
+  pruneDrafts(localStorage, Date.now());
+  const draft = readDraft(localStorage, key);
+  const decision = draftDecision(draft, sha, editorText);
+  if (!draft || decision === 'none') {
+    localStorage.removeItem(key);
+    return;
+  }
+  draftsPaused = true;
+  const keep = () => {
+    showEditorStatus('Older draft kept: new drafts are off until you reopen this file and deal with it.', true);
+  };
+  const when = new Date(draft.savedAt).toLocaleString();
+  if (decision === 'restore') {
+    const choice = await offerDraft(screen, `Unsaved draft from ${when}.`, [['r', 'Restore'], ['d', 'Discard'], ['k', 'Keep']]);
+    if (choice === 'k') { keep(); return; }
+    draftsPaused = false;
+    if (choice === 'r') {
+      ved.setEditorContent(draft.text, { markSaved: false });
+      showEditorStatus('Draft restored');
+    } else {
+      localStorage.removeItem(key);
+    }
+  } else {
+    const choice = await offerDraft(screen,
+      `Draft from ${when} is based on an older version of this file.`, [['c', 'Copy to clipboard'], ['d', 'Discard'], ['k', 'Keep']]);
+    if (choice === 'k') { keep(); return; }
+    if (choice === 'c' && !(await copyDraft(draft))) return;
+    draftsPaused = false;
+    localStorage.removeItem(key);
+    if (choice === 'c') showEditorStatus('Draft copied to clipboard');
+  }
+  ved.focusEditor();
+}
+
+/** Copy a stale draft to the clipboard. On failure the draft stays (drafts stay paused) and the status says so. */
+async function copyDraft(draft: Draft): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(draft.text);
+    return true;
+  } catch (err) {
+    // Sidebar iframes may lack clipboard access; barouse relays this, but can't confirm it.
+    if (framed) window.parent.postMessage({ type: 'barouse:clipboard-write', text: draft.text }, '*');
+    showEditorStatus(`Couldn't confirm the copy (${errorMessage(err)}). The draft is kept; new drafts are off.`, true);
+    return false;
+  }
+}
+
+/**
+ * Offer choices for an existing draft in a bar under the editor. Each choice is
+ * [key, label]; Enter picks the first, Esc the last.
+ */
+function offerDraft(screen: HTMLElement, text: string, choices: Array<[string, string]>): Promise<string> {
+  const bar = document.createElement('div');
+  bar.className = 'commit-prompt draft-prompt';
+  bar.tabIndex = -1;
+  const label = document.createElement('span');
+  label.textContent = text;
+  bar.appendChild(label);
+  screen.appendChild(bar);
+
+  return new Promise((resolve) => {
+    const finish = (k: string) => { bar.remove(); resolve(k); };
+    for (const [k, name] of choices) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'draft-prompt-btn';
+      btn.innerHTML = `<u>${escapeHtml(name[0])}</u>${escapeHtml(name.slice(1))}`;
+      btn.addEventListener('click', () => finish(k));
+      bar.appendChild(btn);
+    }
+    bar.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      const k = e.key === 'Enter' ? choices[0][0] : e.key === 'Escape' ? choices[choices.length - 1][0] : e.key.toLowerCase();
+      if (choices.some(([c]) => c === k)) { e.preventDefault(); finish(k); }
+    });
+    bar.focus();
   });
 }
 
