@@ -144,6 +144,7 @@ export async function showEditor(
           showStatus('Saved');
         } catch (err) {
           showStatus(`Save failed: ${errorMessage(err)}`, true);
+          return false; // not saved: veditor keeps the buffer dirty
         }
       },
       onQuit: handleQuit,

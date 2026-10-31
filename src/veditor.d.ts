@@ -8,7 +8,8 @@ export interface DocEntry {
 }
 
 export interface VEditorCallbacks {
-  onSave: () => Promise<void>;
+  /** Resolve false when nothing was saved (cancelled or failed): the buffer stays dirty. veditor < 0.45 ignores the value. */
+  onSave: () => Promise<void | boolean>;
   onQuit: () => void;
   isAppDirty?: () => boolean;
   onListDocuments?: () => Promise<DocEntry[]>;
@@ -42,7 +43,8 @@ export function exitInsertMode(): void;
 export function executeExCommand(cmd: string): void;
 export function toggleVimMode(): boolean;
 export function isVimMode(): boolean;
-export function requestSave(): Promise<void>;
+/** Resolves whether the save happened (veditor >= 0.45; older versions resolve undefined). */
+export function requestSave(): Promise<boolean | void>;
 export function requestQuit(force?: boolean): void;
 export function hashTarget(url: string): string;
 export function getAutoSaveMs(): number;

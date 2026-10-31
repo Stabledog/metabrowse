@@ -19,6 +19,30 @@ function headers(token: string): HeadersInit {
   };
 }
 
+/** A non-2xx GitHub API response: the HTTP status and GitHub's own error message. */
+export class ApiError extends Error {
+  readonly status: number;
+  readonly githubMessage: string;
+
+  constructor(status: number, githubMessage: string) {
+    super(`GitHub API ${status}: ${githubMessage}`);
+    this.name = 'ApiError';
+    this.status = status;
+    this.githubMessage = githubMessage;
+  }
+}
+
+/** Build an ApiError from a failed response. GitHub's error body is JSON with a `message`; fall back to the raw text. */
+async function apiError(res: Response): Promise<ApiError> {
+  const text = await res.text();
+  let message = text;
+  try {
+    const body = JSON.parse(text) as { message?: unknown };
+    if (typeof body.message === 'string') message = body.message;
+  } catch { /* not JSON */ }
+  return new ApiError(res.status, message);
+}
+
 async function apiFetch<T>(host: string, token: string, path: string, init?: RequestInit): Promise<T> {
   const url = `${apiBase(host)}${path}`;
   console.log(`[github] ${init?.method ?? 'GET'} ${url}`);
@@ -26,10 +50,7 @@ async function apiFetch<T>(host: string, token: string, path: string, init?: Req
     ...init,
     headers: { ...headers(token), ...init?.headers },
   });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`GitHub API ${res.status}: ${text}`);
-  }
+  if (!res.ok) throw await apiError(res);
   return res.json() as Promise<T>;
 }
 
@@ -93,6 +114,7 @@ export function extractContentPaths(tree: TreeEntry[]): string[] {
 // --- Contents API ---
 
 interface ContentsResponse {
+  type: string; // "file", "dir", "symlink" or "submodule"
   content: string;
   sha: string;
   name: string;
@@ -104,13 +126,22 @@ interface UpdateResponse {
   content: { sha: string };
 }
 
-function decodeBase64(b64: string): string {
+/**
+ * Decode base64 file content as UTF-8. A BOM is kept as a leading \uFEFF so it
+ * round-trips through encodeBase64. Anything that isn't valid UTF-8 (binary,
+ * another encoding) throws rather than decoding lossily.
+ */
+export function decodeBase64(b64: string): string {
   const binaryStr = atob(b64.replace(/\n/g, ''));
   const bytes = Uint8Array.from(binaryStr, c => c.charCodeAt(0));
-  return new TextDecoder().decode(bytes);
+  try {
+    return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
+  } catch {
+    throw new Error('Not a UTF-8 text file (binary or another encoding).');
+  }
 }
 
-function encodeBase64(text: string): string {
+export function encodeBase64(text: string): string {
   const bytes = new TextEncoder().encode(text);
   let binaryStr = '';
   for (const b of bytes) {
@@ -124,16 +155,31 @@ export interface FileContent {
   sha: string;
 }
 
+export interface GetFileOptions {
+  /** Branch, tag or SHA to read from. Default: the repo's default branch. */
+  ref?: string;
+  /** Bypass the browser HTTP cache (GitHub sends max-age=60), so a re-read sees the current sha. */
+  noStore?: boolean;
+}
+
 /** Fetch a file's content and SHA (needed for editing). */
 export async function getFileContent(
   host: string, token: string,
   owner: string, repo: string, path: string,
+  opts: GetFileOptions = {},
 ): Promise<FileContent> {
+  const query = opts.ref ? `?ref=${encodeURIComponent(opts.ref)}` : '';
   const data = await apiFetch<ContentsResponse>(
     host, token,
-    `/repos/${owner}/${repo}/contents/${encodePath(path)}`,
+    `/repos/${owner}/${repo}/contents/${encodePath(path)}${query}`,
+    opts.noStore ? { cache: 'no-store' } : undefined,
   );
-  if (!data.content) {
+  // A directory comes back as an array; a symlink or submodule has another type.
+  if (Array.isArray(data) || data.type !== 'file') {
+    throw new Error(`Not a file: ${path}`);
+  }
+  // Over 1 MB the content is omitted (encoding "none"). An empty file is "" with encoding "base64".
+  if (data.encoding !== 'base64') {
     throw new Error('File too large for Contents API. Only files under 1MB are supported.');
   }
   return {
@@ -142,20 +188,26 @@ export async function getFileContent(
   };
 }
 
-/** Fetch a file's raw content as a string (read-only, no SHA tracking). */
+/** Fetch a file's raw content as a string (read-only, no SHA tracking). A BOM is dropped: it only matters when writing back. */
 export async function getRawContent(
   host: string, token: string,
   owner: string, repo: string, path: string,
 ): Promise<string> {
   const file = await getFileContent(host, token, owner, repo, path);
-  return file.content;
+  return file.content.replace(/^\uFEFF/, '');
 }
 
-/** Update a file's content. Returns the new SHA. */
+export interface UpdateFileOptions {
+  /** Branch to commit to. Default: the repo's default branch. */
+  branch?: string;
+}
+
+/** Update a file's content. Returns the new SHA. Failures throw ApiError (409: sha mismatch or branch rules; 403/404: no write access). */
 export async function updateFileContent(
   host: string, token: string,
   owner: string, repo: string, path: string,
   content: string, sha: string, message: string,
+  opts: UpdateFileOptions = {},
 ): Promise<string> {
   const res = await fetch(`${apiBase(host)}/repos/${owner}/${repo}/contents/${encodePath(path)}`, {
     method: 'PUT',
@@ -164,15 +216,10 @@ export async function updateFileContent(
       message,
       content: encodeBase64(content),
       sha,
+      ...(opts.branch ? { branch: opts.branch } : {}),
     }),
   });
-  if (res.status === 409) {
-    throw new Error('File was modified by someone else. Reload to get the latest version.');
-  }
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`GitHub API ${res.status}: ${text}`);
-  }
+  if (!res.ok) throw await apiError(res);
   const data = await res.json() as UpdateResponse;
   return data.content.sha;
 }
@@ -191,10 +238,7 @@ export async function createFile(
       content: encodeBase64(content),
     }),
   });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`GitHub API ${res.status}: ${text}`);
-  }
+  if (!res.ok) throw await apiError(res);
   const data = await res.json() as UpdateResponse;
   return data.content.sha;
 }
@@ -213,8 +257,5 @@ export async function deleteFile(
       sha,
     }),
   });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`GitHub API ${res.status}: ${text}`);
-  }
+  if (!res.ok) throw await apiError(res);
 }
