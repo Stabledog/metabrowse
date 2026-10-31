@@ -15,6 +15,8 @@ export interface VEditorCallbacks {
   onListDocuments?: () => Promise<DocEntry[]>;
   onLoadDocument?: (id: string) => Promise<{ content: string; label: string; callbacks: VEditorCallbacks }>;
   onBufferSwitch?: (id: string, label: string) => void;
+  /** veditor >= 0.45: fires on every document change in the buffer. Read the text with getEditorContent(). */
+  onChange?: () => void;
 }
 
 export interface VEditorOptions {
@@ -36,6 +38,8 @@ export function createEditor(
 ): unknown;
 
 export function getEditorContent(): string;
+/** markSaved: false (veditor >= 0.45) makes the replacement an edit: the buffer goes dirty. */
+export function setEditorContent(content: string, opts?: { bufferId?: string; markSaved?: boolean }): void;
 export function isEditorDirty(original: string): boolean;
 export function focusEditor(): void;
 export function destroyEditor(): void;

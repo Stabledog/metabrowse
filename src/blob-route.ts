@@ -107,8 +107,9 @@ export interface SaveContext {
   currentSha: () => Promise<string>;
 }
 
-export const UPSTREAM_CHANGED = 'File changed upstream since you opened it. Copy your edits and reload.';
-export const UPSTREAM_DELETED = 'File was deleted or moved upstream since you opened it. Copy your edits.';
+// The caller adds what happens to the edits (file-editor.ts keeps them as a draft).
+export const UPSTREAM_CHANGED = 'File changed upstream since you opened it.';
+export const UPSTREAM_DELETED = 'File was deleted or moved upstream since you opened it.';
 
 /**
  * The message for a failed commit. 409/422 can mean a sha mismatch or a branch

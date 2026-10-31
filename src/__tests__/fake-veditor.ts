@@ -38,7 +38,7 @@ export function getEditorContent(): string {
 export function setEditorContent(text: string, opts?: { markSaved?: boolean }): void {
   content = text;
   if (opts?.markSaved !== false) saved = text;
-  else callbacks?.onChange?.();
+  callbacks?.onChange?.(); // veditor fires it for every document change
 }
 
 /** Simulates typing at the end of the buffer. */

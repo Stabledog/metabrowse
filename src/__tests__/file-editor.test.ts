@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fake from './fake-veditor.ts';
+import { draftKey, readDraft, writeDraft } from '../drafts.ts';
+import type { Draft } from '../drafts.ts';
+import { DEFAULT_HOST } from '../github.ts';
 
 vi.mock('../editor.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../editor.ts')>()),
@@ -274,5 +277,189 @@ describe('file editor: quitting in a barouse frame', () => {
     await loading;
     expect(posted).toEqual([{ type: 'barouse:editor-closed' }]);
     expect(fake.isOpen()).toBe(false);
+  });
+});
+
+// ── Drafts ──────────────────────────────────────────────────────────
+
+describe('file editor: drafts', () => {
+  const KEY = draftKey({ host: DEFAULT_HOST, owner: 'o', repo: 'r', ref: 'feature/x', path: 'docs/a.md' });
+  const stored = () => readDraft(localStorage, KEY);
+  const flush = () => window.dispatchEvent(new Event('pagehide'));
+  const put = (over: Partial<Draft> = {}) =>
+    writeDraft(localStorage, KEY, { text: 'one\ntwo\ndraft\n', baseSha: 's1', savedAt: Date.now(), instance: 'old', ...over });
+  const promptBar = () => document.querySelector<HTMLElement>('.draft-prompt');
+  const pressInBar = (key: string, target: HTMLElement = promptBar()!) =>
+    target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+
+  /** Open while a draft prompt is up: resolves the open once the prompt is answered. */
+  async function openWithPrompt(): Promise<{ opening: Promise<void> }> {
+    location.hash = '#/blob/o/r/feature/x/docs/a.md';
+    const opening = initFileEditor(app());
+    await vi.waitFor(() => expect(promptBar()).not.toBeNull());
+    return { opening }; // wrapped: returning the promise itself would wait for the answer
+  }
+
+  it('writes a draft after edits (debounced) and on pagehide', async () => {
+    await open();
+    fake.type('x');
+    expect(stored()).toBeNull();
+    await vi.waitFor(() => expect(stored()?.text).toBe('one\ntwo\nx'), { timeout: 1500 });
+    fake.type('y');
+    flush();
+    expect(stored()).toMatchObject({ text: 'one\ntwo\nxy', baseSha: 's1' });
+  });
+
+  it('deletes the draft on commit and on a clean quit', async () => {
+    await open();
+    fake.type('x');
+    flush();
+    await save();
+    expect(stored()).toBeNull();
+    fake.type('y');
+    flush();
+    fake.requestQuit(true);
+    expect(stored()).toBeNull();
+  });
+
+  it('says so when storage is full', async () => {
+    await open();
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('full', 'QuotaExceededError'); });
+    fake.type('x');
+    flush();
+    expect(status()).toBe('Draft not saved: storage full');
+  });
+
+  it('keeps the draft when quitting after an upstream change, and offers it as stale next time', async () => {
+    await open();
+    fake.type('mine\n');
+    putError = { status: 409, message: 'does not match' };
+    files['docs/a.md'] = { text: 'theirs\n', sha: 'other' };
+    expect(await save()).toBe(false);
+    expect(status()).toMatch(/changed upstream.*kept as a draft/);
+    fake.requestQuit(true); // :q!
+    expect(stored()).toMatchObject({ text: 'one\ntwo\nmine\n', baseSha: 's1' });
+
+    const { opening } = await openWithPrompt();
+    expect(promptBar()!.textContent).toMatch(/based on an older version/);
+    expect(fake.isOpen()).toBe(false); // nothing to type into until it's answered
+    const text = document.querySelector<HTMLTextAreaElement>('.draft-text')!;
+    expect(text.readOnly).toBe(true);
+    expect(text.value).toBe('one\ntwo\nmine\n');
+    expect(document.activeElement).toBe(text);
+    pressInBar('Enter', text); // does nothing for a stale draft
+    expect(promptBar()).not.toBeNull();
+    pressInBar('d', text);
+    await opening;
+    expect(stored()).toBeNull();
+    expect(fake.getEditorContent()).toBe('theirs\n');
+  });
+
+  it('file deleted upstream: no draft promised, the edits shown to copy now', async () => {
+    await open();
+    fake.type('mine\n');
+    putError = { status: 409, message: 'does not match' };
+    getError = { status: 404, message: 'Not Found' };
+    expect(await save()).toBe(false);
+    expect(status()).toMatch(/deleted or moved upstream/);
+    expect(status()).not.toMatch(/draft/);
+    const text = document.querySelector<HTMLTextAreaElement>('.draft-text')!;
+    expect(promptBar()!.textContent).toMatch(/Copy your edits now/);
+    expect(text.readOnly).toBe(true);
+    expect(text.value).toBe('one\ntwo\nmine\n');
+    expect(document.activeElement).toBe(text);
+    pressInBar('Escape', text);
+    expect(promptBar()).toBeNull();
+    flush();
+    fake.requestQuit(true); // :q!: nothing would ever offer the draft, so it goes
+    expect(stored()).toBeNull();
+  });
+
+  it('upstream change with storage full: says the edits are not kept, and shows them to copy', async () => {
+    await open();
+    fake.type('mine\n');
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('full', 'QuotaExceededError'); });
+    putError = { status: 409, message: 'does not match' };
+    files['docs/a.md'] = { text: 'theirs\n', sha: 'other' };
+    expect(await save()).toBe(false);
+    expect(status()).toMatch(/changed upstream/);
+    expect(status()).not.toMatch(/kept as a draft/);
+    expect(promptBar()!.textContent).toMatch(/storage full.*Copy your edits now/);
+    expect(document.querySelector<HTMLTextAreaElement>('.draft-text')!.value).toBe('one\ntwo\nmine\n');
+  });
+
+  it('restores a draft made on the current version, as an unsaved edit', async () => {
+    put();
+    const { opening } = await openWithPrompt();
+    expect(promptBar()!.textContent).toMatch(/Unsaved draft/);
+    pressInBar('Enter');
+    await opening;
+    expect(fake.getEditorContent()).toBe('one\ntwo\ndraft\n');
+    expect(fake.isDirty()).toBe(true);
+    flush();
+    expect(stored()!.instance).not.toBe('old'); // ours now
+  });
+
+  it('Keep leaves the old draft alone and turns new drafts off', async () => {
+    put({ baseSha: 'older' });
+    const { opening } = await openWithPrompt();
+    pressInBar('k', document.querySelector<HTMLElement>('.draft-text')!);
+    await opening;
+    expect(status()).toMatch(/Older draft kept/);
+    fake.type('new');
+    flush();
+    fake.requestQuit(true);
+    expect(stored()).toMatchObject({ text: 'one\ntwo\ndraft\n', instance: 'old' });
+  });
+
+  it('never deletes a draft another editor wrote', async () => {
+    await open();
+    fake.type('x');
+    flush();
+    put({ text: 'one\ntwo\nother\n', instance: 'popup' }); // the same file, open elsewhere
+    fake.requestQuit(true);
+    expect(stored()!.instance).toBe('popup');
+  });
+});
+
+describe('file editor: drafts in a barouse frame', () => {
+  it('request-quit during the draft prompt keeps the draft and closes', async () => {
+    const frame = document.createElement('iframe');
+    document.body.appendChild(frame);
+    const parentWin = frame.contentWindow!;
+    const posted: unknown[] = [];
+    vi.spyOn(parentWin, 'postMessage').mockImplementation((m: unknown) => { posted.push(m); });
+    await load({ parent: parentWin });
+    const key = draftKey({ host: DEFAULT_HOST, owner: 'o', repo: 'r', ref: 'feature/x', path: 'docs/a.md' });
+    writeDraft(localStorage, key, { text: 'draft', baseSha: 's1', savedAt: Date.now(), instance: 'old' });
+
+    location.hash = '#/blob/o/r/feature/x/docs/a.md';
+    const opening = initFileEditor(app());
+    await vi.waitFor(() => expect(document.querySelector('.draft-prompt')).not.toBeNull());
+    window.dispatchEvent(new MessageEvent('message', { data: { type: 'barouse:request-quit' }, source: parentWin }));
+    await opening;
+    expect(posted).toEqual([{ type: 'barouse:editor-closed' }]);
+    expect(fake.isOpen()).toBe(false);
+    expect(readDraft(localStorage, key)!.text).toBe('draft');
+  });
+
+  it('request-quit while loading, with a draft: closes without offering it, and keeps it', async () => {
+    const frame = document.createElement('iframe');
+    document.body.appendChild(frame);
+    const parentWin = frame.contentWindow!;
+    const posted: unknown[] = [];
+    vi.spyOn(parentWin, 'postMessage').mockImplementation((m: unknown) => { posted.push(m); });
+    await load({ parent: parentWin });
+    const key = draftKey({ host: DEFAULT_HOST, owner: 'o', repo: 'r', ref: 'feature/x', path: 'docs/a.md' });
+    writeDraft(localStorage, key, { text: 'draft', baseSha: 's1', savedAt: Date.now(), instance: 'old' });
+
+    location.hash = '#/blob/o/r/feature/x/docs/a.md';
+    const opening = initFileEditor(app());
+    window.dispatchEvent(new MessageEvent('message', { data: { type: 'barouse:request-quit' }, source: parentWin }));
+    await opening; // would hang on the prompt without the fix
+    expect(document.querySelector('.draft-prompt')).toBeNull();
+    expect(posted).toEqual([{ type: 'barouse:editor-closed' }]);
+    expect(fake.isOpen()).toBe(false);
+    expect(readDraft(localStorage, key)!.text).toBe('draft');
   });
 });

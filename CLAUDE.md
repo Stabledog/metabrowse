@@ -92,7 +92,8 @@ The SPA implements a modular pipeline that runs entirely in the browser:
 - Opened by barouse in a popup or a sidebar iframe: `onQuit` closes the window, or posts `barouse:editor-closed` to the parent when framed; the parent can send `barouse:request-quit`, which is honoured in every state (loading, editing, or an error shown)
 - One commit at a time: a `:w` while the commit bar is open or a PUT is in flight returns `false`
 - `file-editor.test.ts` runs under jsdom against `fake-veditor.ts`, a stand-in with veditor's 0.45 save/quit contract
-- Pure logic lives in `blob-route.ts` and is unit tested
+- Drafts (`drafts.ts`): veditor's `onChange` → debounced `localStorage` write, also on `pagehide`. An existing draft is offered before the editor opens (restore, or for one made on an older sha, show it read-only to copy from). Each draft records the editor instance that wrote it, and an editor only deletes its own. Quitting deletes it, except after a commit failed because the file changed upstream. When a failed commit can't leave the edits in a draft (file deleted upstream, drafts off, storage full), they're shown at once in the same read-only textarea to copy
+- Pure logic lives in `blob-route.ts` and `drafts.ts` and is unit tested
 
 ### Supporting Modules
 - **`github.ts`** — GitHub API client (token validation, tree fetching, content retrieval)
