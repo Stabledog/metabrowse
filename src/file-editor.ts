@@ -233,8 +233,9 @@ async function copyDraft(draft: Draft): Promise<boolean> {
     await navigator.clipboard.writeText(draft.text);
     return true;
   } catch (err) {
-    // Sidebar iframes may lack clipboard access; barouse relays this, but can't confirm it.
-    if (framed) window.parent.postMessage({ type: 'barouse:clipboard-write', text: draft.text }, '*');
+    // Sidebar iframes may lack clipboard access. Same fallback as veditor's yank: barouse picks this up
+    // from our own window (never post content to the parent), but can't confirm it.
+    window.postMessage({ type: 'barouse:clipboard-write', text: draft.text }, '*');
     showEditorStatus(`Couldn't confirm the copy (${errorMessage(err)}). The draft is kept; new drafts are off.`, true);
     return false;
   }
