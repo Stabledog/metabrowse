@@ -2,7 +2,8 @@
 
 import { contentPathFor } from './utils.ts';
 
-export type RouteKind = 'browse' | 'edit';
+/** 'blob' is the file-editor route (file-editor.ts), reserved here so it's never read as a content path. */
+export type RouteKind = 'browse' | 'edit' | 'blob';
 
 export interface Route {
   kind: RouteKind;
@@ -23,6 +24,9 @@ export function parseHash(hash: string): Route {
 
   // Detect edit route
   let kind: RouteKind = 'browse';
+  if (path.startsWith('blob/') || path === 'blob') {
+    return { kind: 'blob', dirPath: '', contentPath: '' };
+  }
   if (path.startsWith('edit/')) {
     kind = 'edit';
     path = path.slice('edit/'.length);

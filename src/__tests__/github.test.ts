@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   ApiError, decodeBase64, encodeBase64,
   getFileContent, getRawContent, updateFileContent, createFile, validateToken,
+  branchExists, checkRepo,
 } from '../github.ts';
 
 const HOST = 'ghes.example.com';
@@ -153,5 +154,28 @@ describe('decodeBase64', () => {
     const binary = btoa('\x89PNG\r\n\x1a\n\x00\xff');
     expect(() => decodeBase64(latin1)).toThrow(/Not a UTF-8 text file/);
     expect(() => decodeBase64(binary)).toThrow(/Not a UTF-8 text file/);
+  });
+});
+
+// ── branchExists / checkRepo ────────────────────────────────────────
+
+describe('branchExists', () => {
+  it('is true on 200, false on 404, and throws on anything else', async () => {
+    nextResponse = () => json(200, { name: 'feature/x' });
+    expect(await branchExists(HOST, 't', 'o', 'r', 'feature/x')).toBe(true);
+    expect(calls[0].url).toBe(`https://${HOST}/api/v3/repos/o/r/branches/feature/x`);
+
+    nextResponse = () => json(404, { message: 'Branch not found' });
+    expect(await branchExists(HOST, 't', 'o', 'r', 'nope')).toBe(false);
+
+    nextResponse = () => json(401, { message: 'Bad credentials' });
+    expect(await caught(branchExists(HOST, 't', 'o', 'r', 'main'))).toBeInstanceOf(ApiError);
+  });
+});
+
+describe('checkRepo', () => {
+  it('throws ApiError when the repo can\'t be read', async () => {
+    nextResponse = () => json(404, { message: 'Not Found' });
+    expect(((await caught(checkRepo(HOST, 't', 'o', 'r'))) as ApiError).status).toBe(404);
   });
 });

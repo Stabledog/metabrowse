@@ -84,6 +84,13 @@ The SPA implements a modular pipeline that runs entirely in the browser:
 - Launches veditor.web (CodeMirror 6 + vim mode) in a new tab
 - Loaded at runtime from GitHub Pages via dynamic `import()`
 
+### File Editor Route (`file-editor.ts`, `blob-route.ts`)
+- `#/blob/<owner>/<repo>/<ref...>/<path...>` edits one file on any repo the token can reach. `main.ts` dispatches to it before `init()`, so it never needs a content repo; the browse router reserves `blob/` like `edit/`
+- The ref is the shortest prefix of the segments that is a branch; anything else (SHA, tag) is refused
+- `:w` → commit-message bar → PUT with `branch` and `sha`; `onSave` returns `false` when cancelled or failed so veditor keeps the buffer dirty. Autosave is off
+- Opened by barouse in a popup or a sidebar iframe: `onQuit` closes the window, or posts `barouse:editor-closed` to the parent when framed; the parent can send `barouse:request-quit`
+- Pure logic lives in `blob-route.ts` and is unit tested
+
 ### Supporting Modules
 - **`github.ts`** — GitHub API client (token validation, tree fetching, content retrieval)
 - **`favicon.ts`** — Fetches and caches favicons for external links via localStorage

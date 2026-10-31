@@ -64,6 +64,7 @@ Push to `main` — GitHub Actions builds and deploys to gh-pages automatically.
 - **Groups**: Non-URL `- ` lines create sub-groups with their indented links
 - **Browser tab reuse**: External URLs get deterministic hash-based targets
 - **In-browser editor**: Click "Edit" (or press `e`) to edit content with vim keybindings via veditor.web
+- **Edit any file**: `#/blob/<owner>/<repo>/<branch>/<path>` (the tail of a GitHub blob URL) opens that one file in veditor; `:w` asks for a commit message and commits to the branch. Uses the same token as the app, and needs no content repo. Branches only (SHAs and tags are refused); UTF-8 text up to 1 MB; CRLF files keep CRLF; files with mixed line endings are refused. Autosave is off.
 - **Search**: Local in-page filter (`/`) and global cross-page search (`Ctrl+K`)
 - **Favicons**: Auto-loaded for http/https links with localStorage caching
 - **Keyboard shortcuts**: `/` search, `Ctrl+K` global search, `e` edit, `c` collapse/restore, `r` reload
@@ -124,6 +125,8 @@ metabrowse/
 │   ├── favicon.ts       # Favicon loading + caching
 │   ├── keyboard.ts      # Keyboard shortcuts
 │   ├── editor.ts        # Editor view (veditor.web)
+│   ├── file-editor.ts   # #/blob/ route: edit any file on a branch
+│   ├── blob-route.ts    # #/blob/ parsing, ref resolution, line endings, save errors
 │   ├── cache.ts         # localStorage caching
 │   ├── router.ts        # Hash-based routing
 │   ├── veditor.d.ts     # veditor.web type declarations

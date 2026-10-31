@@ -64,6 +64,26 @@ export function validateToken(host: string, token: string): Promise<GitHubUser> 
   return apiFetch<GitHubUser>(host, token, '/user');
 }
 
+// --- Repos and branches ---
+
+/** Check the repo is readable with this token. Throws ApiError (404 when it doesn't exist or the token can't see it). */
+export async function checkRepo(host: string, token: string, owner: string, repo: string): Promise<void> {
+  await apiFetch<unknown>(host, token, `/repos/${owner}/${repo}`);
+}
+
+/** Whether `name` is a branch of the repo. Other failures throw ApiError. */
+export async function branchExists(
+  host: string, token: string, owner: string, repo: string, name: string,
+): Promise<boolean> {
+  try {
+    await apiFetch<unknown>(host, token, `/repos/${owner}/${repo}/branches/${encodePath(name)}`);
+    return true;
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return false;
+    throw err;
+  }
+}
+
 // --- Trees API ---
 
 export interface TreeEntry {
