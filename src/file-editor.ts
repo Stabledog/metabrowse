@@ -1,0 +1,239 @@
+/**
+ * File editor route: #/blob/<owner>/<repo>/<ref...>/<path...>
+ *
+ * Edits one file on any repo the token can reach, committing to its branch.
+ * It skips the content-repo app entirely (no content repo, tree or index), and
+ * opens in a popup window or a barouse sidebar iframe.
+ */
+
+import { ApiError, DEFAULT_HOST, branchExists, checkRepo, getFileContent, updateFileContent } from './github.ts';
+import { loadVeditor, showEditorStatus } from './editor.ts';
+import {
+  parseBlobHash, resolveRef, detectLineEndings, toEditorText, toFileText, describeSaveError,
+  veditorSupported, MIN_VEDITOR,
+} from './blob-route.ts';
+import { escapeHtml, errorMessage, basename } from './utils.ts';
+import { logInfo, logError } from './logging-client.ts';
+
+const LS_TOKEN = 'notehub:token';
+const LS_HOST = 'notehub:host';
+
+const framed = window.parent !== window;
+
+function showMessage(target: HTMLElement, title: string, detailHtml = ''): void {
+  target.innerHTML = `
+    <div class="editor-loading" style="flex-direction:column;gap:1rem;padding:1rem;text-align:center;">
+      <div style="color:#f38ba8;">${escapeHtml(title)}</div>
+      ${detailHtml ? `<div style="font-size:0.85rem;">${detailHtml}</div>` : ''}
+    </div>
+  `;
+}
+
+/** Leave the editor: tell barouse when framed, otherwise close the window. */
+function closeEditor(target: HTMLElement): void {
+  if (framed) {
+    window.parent.postMessage({ type: 'barouse:editor-closed' }, '*');
+    return;
+  }
+  window.close();
+  // Still here: the tab wasn't opened by script, so it can't close itself.
+  showMessage(target, 'Editor closed', 'You can close this tab.');
+}
+
+export async function initFileEditor(target: HTMLElement): Promise<void> {
+  // Editing the hash in place means a different file (or the app): start over.
+  window.addEventListener('hashchange', () => location.reload());
+
+  // Barouse can ask us to quit at any point. Only a live editor has anything to
+  // confirm; before that (still loading) we close as soon as loading ends, and
+  // after it (an error shown, or already closed) we close straight away.
+  let state: 'loading' | 'editing' | 'done' = 'loading';
+  let quitRequested = false;
+  let ved: typeof import('./veditor.d.ts');
+  if (framed) {
+    window.addEventListener('message', (e: MessageEvent) => {
+      if (e.source !== window.parent || e.data?.type !== 'barouse:request-quit') return;
+      if (state === 'editing') ved.requestQuit();
+      else if (state === 'done') closeEditor(target);
+      else quitRequested = true;
+    });
+  }
+  const fail = (title: string, detailHtml = ''): void => {
+    state = 'done';
+    showMessage(target, title, detailHtml);
+    if (quitRequested) closeEditor(target);
+  };
+
+  const parsed = parseBlobHash(location.hash);
+  if (!parsed) {
+    fail('Not a file URL', 'Expected <code>#/blob/&lt;owner&gt;/&lt;repo&gt;/&lt;branch&gt;/&lt;path&gt;</code>.');
+    return;
+  }
+  const { owner, repo } = parsed;
+  const host = localStorage.getItem(LS_HOST) || DEFAULT_HOST;
+  const token = localStorage.getItem(LS_TOKEN) || '';
+  const signIn = `<a href="${escapeHtml(import.meta.env.BASE_URL)}" target="_blank" rel="noopener">Sign in to metabrowse</a> once, then reload.`;
+  if (!token) {
+    fail('Not signed in', signIn);
+    return;
+  }
+
+  target.innerHTML = `<div class="editor-loading">Loading editor...</div>`;
+
+  let ref: string;
+  let path: string;
+  let sha: string;
+  let fileText: string;
+  try {
+    const [v] = await Promise.all([loadVeditor(), checkRepo(host, token, owner, repo)]);
+    ved = v;
+    if (!veditorSupported(ved.VERSION)) {
+      fail(`veditor ${String(ved.VERSION)} is too old`,
+        `The file editor needs veditor ${MIN_VEDITOR.join('.')} or newer. Redeploy veditor.web.`);
+      return;
+    }
+    const split = await resolveRef(parsed.rest, name => branchExists(host, token, owner, repo, name));
+    if (!split) {
+      fail(`Not a branch: ${parsed.rest[0]}`, 'Open the file from a branch to edit it.');
+      return;
+    }
+    ({ ref, path } = split);
+    const file = await getFileContent(host, token, owner, repo, path, { ref, noStore: true });
+    sha = file.sha;
+    fileText = file.content;
+  } catch (err) {
+    logError(`FileEditor: load failed: ${errorMessage(err)}`);
+    if (err instanceof ApiError && err.status === 401) {
+      fail('Token rejected', signIn);
+    } else if (err instanceof ApiError && err.status === 404) {
+      fail(`Not found: ${owner}/${repo}`, 'The repo or file doesn\'t exist, or your token can\'t read it.');
+    } else {
+      fail('Failed to load editor', escapeHtml(errorMessage(err)));
+    }
+    return;
+  }
+
+  const eol = detectLineEndings(fileText);
+  if (eol === 'mixed') {
+    fail('Mixed line endings',
+      `${escapeHtml(path)} mixes CRLF and LF (or has lone CRs). Saving from the editor would rewrite them, so it can't be edited here.`);
+    return;
+  }
+
+  const name = basename(path);
+  const encodeSegments = (p: string) => p.split('/').map(encodeURIComponent).join('/');
+  const blobUrl = `https://${host}/${owner}/${repo}/blob/${encodeSegments(ref)}/${encodeSegments(path)}`;
+  document.title = `${name} · veditor`;
+  logInfo(`FileEditor: ${owner}/${repo}@${ref}:${path} (${eol})`);
+
+  target.innerHTML = `
+    <div class="editor-screen">
+      <header>
+        <a class="filename" href="${escapeHtml(blobUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(path)}</a>
+        <span class="file-ref">${escapeHtml(`${owner}/${repo} @ ${ref}`)}</span>
+        <span id="status-msg"></span>
+      </header>
+      <div id="editor-container"></div>
+    </div>
+  `;
+  const screen = target.querySelector<HTMLElement>('.editor-screen')!;
+
+  // One commit at a time: a second :w would send a stale sha, or replace the
+  // commit bar and leave the first save's promise hanging.
+  let saving = false;
+
+  const onSave = async (): Promise<boolean | void> => {
+    if (saving) {
+      screen.querySelector<HTMLInputElement>('.commit-prompt input')?.focus();
+      showEditorStatus('A commit is already in progress');
+      return false;
+    }
+    saving = true;
+    try {
+      return await commit();
+    } finally {
+      saving = false;
+    }
+  };
+
+  const commit = async (): Promise<boolean | void> => {
+    const newText = toFileText(ved.getEditorContent(), eol);
+    if (newText === fileText) {
+      showEditorStatus('No changes');
+      return;
+    }
+    const message = await promptCommitMessage(screen, `Update ${name} via veditor`);
+    ved.focusEditor();
+    if (message === null) {
+      showEditorStatus('Not committed');
+      return false;
+    }
+    try {
+      showEditorStatus('Committing...');
+      sha = await updateFileContent(host, token, owner, repo, path, newText, sha, message, { branch: ref });
+      fileText = newText;
+      showEditorStatus(`Committed to ${ref}`);
+    } catch (err) {
+      logError(`FileEditor: commit failed: ${errorMessage(err)}`);
+      const baseSha = sha;
+      showEditorStatus(await describeSaveError(err, {
+        owner, repo, ref, baseSha,
+        currentSha: async () => (await getFileContent(host, token, owner, repo, path, { ref, noStore: true })).sha,
+      }), true);
+      return false;
+    }
+  };
+
+  const onQuit = (): void => {
+    state = 'done';
+    ved.destroyEditor();
+    closeEditor(target);
+  };
+
+  ved.createEditor(document.getElementById('editor-container')!, toEditorText(fileText, eol), { onSave, onQuit }, {
+    storagePrefix: 'metabrowse',
+    autoSaveMs: 0, // onSave commits to someone's repo: never on a timer
+    initialBufferId: path,
+    initialBufferLabel: name,
+  });
+  state = 'editing';
+  if (quitRequested) ved.requestQuit();
+}
+
+/**
+ * Ask for a commit message in a bar under the editor. Resolves the message on
+ * Enter (the default if left empty), or null on Escape.
+ */
+function promptCommitMessage(screen: HTMLElement, defaultMessage: string): Promise<string | null> {
+  screen.querySelector('.commit-prompt')?.remove();
+  const bar = document.createElement('div');
+  bar.className = 'commit-prompt';
+  bar.innerHTML = `
+    <label for="commit-message">Commit message:</label>
+    <input id="commit-message" type="text" spellcheck="false" autocomplete="off" />
+    <span class="commit-prompt-hint">Enter to commit · Esc to cancel</span>
+  `;
+  screen.appendChild(bar);
+  const input = bar.querySelector<HTMLInputElement>('input')!;
+  input.value = defaultMessage;
+  input.focus();
+  input.select();
+
+  return new Promise((resolve) => {
+    const finish = (result: string | null) => {
+      bar.remove();
+      resolve(result);
+    };
+    input.addEventListener('keydown', (e) => {
+      // Keep keys away from veditor's and the page's own handlers.
+      e.stopPropagation();
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        finish(input.value.trim() || defaultMessage);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        finish(null);
+      }
+    });
+  });
+}

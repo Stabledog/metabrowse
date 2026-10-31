@@ -14,7 +14,7 @@ let veditor: typeof import('./veditor.d.ts') | null = null;
 let veditorCssLoaded = false;
 const CACHE_BUST = `v=${Date.now()}`;
 
-async function loadVeditor(): Promise<typeof import('./veditor.d.ts')> {
+export async function loadVeditor(): Promise<typeof import('./veditor.d.ts')> {
   if (veditor) return veditor;
 
   if (!VEDITOR_BASE) {
@@ -33,6 +33,17 @@ async function loadVeditor(): Promise<typeof import('./veditor.d.ts')> {
   veditor = await import(/* @vite-ignore */ `${VEDITOR_BASE}/veditor.js?${CACHE_BUST}`);
   if (veditor!.VERSION) setVeditorVersion(veditor!.VERSION);
   return veditor!;
+}
+
+/** Show a message in the editor header's status line. Errors stay until replaced; other messages clear after 2s. */
+export function showEditorStatus(msg: string, isError = false): void {
+  const el = document.getElementById('status-msg');
+  if (!el) return;
+  el.textContent = msg;
+  el.className = isError ? 'error' : 'success';
+  if (!isError) {
+    setTimeout(() => { if (el.textContent === msg) el.textContent = ''; }, 2000);
+  }
 }
 
 function dirLabel(dirPath: string): string {
@@ -88,15 +99,7 @@ export async function showEditor(
     </div>
   `;
 
-  function showStatus(msg: string, isError = false): void {
-    const el = document.getElementById('status-msg');
-    if (!el) return;
-    el.textContent = msg;
-    el.className = isError ? 'error' : 'success';
-    if (!isError) {
-      setTimeout(() => { if (el.textContent === msg) el.textContent = ''; }, 2000);
-    }
-  }
+  const showStatus = showEditorStatus;
 
   function updateHeader(id: string): void {
     const path = contentPathFor(id);

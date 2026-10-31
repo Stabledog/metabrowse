@@ -185,6 +185,12 @@ async function buildSearchIndex(): Promise<void> {
 }
 
 async function handleRoute(route: Route): Promise<void> {
+  if (route.kind === 'blob') {
+    // The file editor runs instead of the app (main.ts), not inside it.
+    location.reload();
+    return;
+  }
+
   const signal = startNavigation();
 
   if (route.kind === 'edit') {
