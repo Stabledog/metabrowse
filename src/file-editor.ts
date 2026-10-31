@@ -15,7 +15,6 @@ import {
 import {
   draftKey, readDraft, writeDraft, removeOwnDraft, pruneDrafts, draftDecision, newInstanceId,
 } from './drafts.ts';
-import type { Draft } from './drafts.ts';
 import { escapeHtml, errorMessage, basename } from './utils.ts';
 import { logInfo, logError } from './logging-client.ts';
 
@@ -148,6 +147,13 @@ export async function initFileEditor(target: HTMLElement): Promise<void> {
   // --- An existing draft? Settled before the editor exists, so nothing typed goes undrafted ---
 
   const key = draftKey({ host, owner, repo, ref, path });
+  if (quitRequested) {
+    // Asked to quit while loading: nothing typed yet, and any draft is left
+    // alone (Keep), rather than waiting on a prompt nobody asked for.
+    state = 'done';
+    closeEditor(target);
+    return;
+  }
   pruneDrafts(localStorage, Date.now());
   const draft = readDraft(localStorage, key);
   const decision = draftDecision(draft, sha, editorText);
@@ -161,7 +167,7 @@ export async function initFileEditor(target: HTMLElement): Promise<void> {
     const offer = decision === 'restore'
       ? offerDraft(screen, `Unsaved draft from ${when}.`, [['r', 'Restore'], ['d', 'Discard'], ['k', 'Keep']])
       : offerDraft(screen, `Draft from ${when} is based on an older version of this file. Copy what you need from it, then:`,
-        [['d', 'Discard'], ['k', 'Keep']], draft);
+        [['d', 'Discard'], ['k', 'Keep']], draft.text);
     cancelOffer = offer.cancel;
     const choice = await offer.choice;
     cancelOffer = null;
@@ -179,18 +185,23 @@ export async function initFileEditor(target: HTMLElement): Promise<void> {
 
   const instance = newInstanceId();
   let draftTimer: ReturnType<typeof setTimeout> | null = null;
-  // A commit failed because the file changed (or went) upstream: quitting keeps the draft.
+  // A commit failed because the file changed upstream: quitting keeps the draft.
   let baseStale = false;
 
-  const flushDraft = (): void => {
+  /** Returns whether the edits are safe: drafted, or nothing to draft. */
+  const flushDraft = (): boolean => {
     if (draftTimer !== null) { clearTimeout(draftTimer); draftTimer = null; }
-    if (draftKept || state !== 'editing') return;
+    if (draftKept || state !== 'editing') return false;
     const text = ved.getEditorContent();
     if (toFileText(text, eol) === fileText) {
       removeOwnDraft(localStorage, key, instance);
-    } else if (!writeDraft(localStorage, key, { text, baseSha: sha, savedAt: Date.now(), instance })) {
-      showEditorStatus('Draft not saved: storage full', true);
+      return true;
     }
+    if (!writeDraft(localStorage, key, { text, baseSha: sha, savedAt: Date.now(), instance })) {
+      showEditorStatus('Draft not saved: storage full', true);
+      return false;
+    }
+    return true;
   };
 
   const onChange = (): void => {
@@ -243,14 +254,25 @@ export async function initFileEditor(target: HTMLElement): Promise<void> {
         owner, repo, ref, baseSha,
         currentSha: async () => (await getFileContent(host, token, owner, repo, path, { ref, noStore: true })).sha,
       });
-      if (msg === UPSTREAM_CHANGED || msg === UPSTREAM_DELETED) {
+      // Changed upstream: the draft keeps the edits, and the next open offers it
+      // as stale. Deleted upstream: nothing would ever offer it, so the edits
+      // must be copied now. So must they when no draft could be written.
+      let copyNow = '';
+      if (msg === UPSTREAM_CHANGED) {
         baseStale = true;
-        msg += draftKept
-          ? ' Drafts are off (an older one was kept): copy your edits before you close this.'
-          : ' Your edits are kept as a draft; reopen the file to see the change.';
+        if (flushDraft()) msg += ' Your edits are kept as a draft; reopen the file to see the change.';
+        else copyNow = draftKept ? 'Drafts are off (an older one was kept).' : 'Your edits couldn\'t be saved as a draft (storage full).';
+      } else if (msg === UPSTREAM_DELETED) {
+        copyNow = 'It can\'t be committed here.';
+      } else {
+        flushDraft();
       }
-      flushDraft();
       showEditorStatus(msg, true);
+      if (copyNow) {
+        // Not awaited: the save settles now, and the bar stays until closed (or the next :w).
+        void offerDraft(screen, `${msg} ${copyNow} Copy your edits now, then:`, [['c', 'Close']], ved.getEditorContent())
+          .choice.then(() => ved.focusEditor());
+      }
       return false;
     }
   };
@@ -284,13 +306,14 @@ export async function initFileEditor(target: HTMLElement): Promise<void> {
 }
 
 /**
- * Offer choices for an existing draft in a bar under the editor. Each choice is
- * [key, label]; Enter picks the first, Esc picks Keep ('k'). With `show`, the
- * draft is shown read-only and selected for copying: one way to copy that works
- * in a sidebar iframe, where the clipboard API may not.
+ * Offer choices in a bar under the editor: for an existing draft, or edits that
+ * must be copied now. Each choice is [key, label]; Enter picks the first, Esc
+ * the last (Keep, or Close). With `show`, that text is shown read-only and
+ * selected for copying: the one way to copy, as it works in a sidebar iframe,
+ * where the clipboard API may not.
  */
 function offerDraft(
-  screen: HTMLElement, text: string, choices: Array<[string, string]>, show?: Draft,
+  screen: HTMLElement, text: string, choices: Array<[string, string]>, show?: string,
 ): { choice: Promise<string>; cancel: () => void } {
   const bar = document.createElement('div');
   bar.className = 'commit-prompt draft-prompt';
@@ -304,7 +327,7 @@ function offerDraft(
     copyFrom.className = 'draft-text';
     copyFrom.readOnly = true;
     copyFrom.spellcheck = false;
-    copyFrom.value = show.text;
+    copyFrom.value = show;
     bar.appendChild(copyFrom);
   }
   screen.appendChild(bar);
@@ -323,8 +346,9 @@ function offerDraft(
     bar.addEventListener('keydown', (e) => {
       e.stopPropagation();
       if (e.ctrlKey || e.metaKey || e.altKey) return; // Ctrl+C in the draft text
-      // Enter restores; for a stale draft it does nothing, so a stray Enter can't discard it.
-      const k = e.key === 'Enter' ? (show ? '' : choices[0][0]) : e.key === 'Escape' ? 'k' : e.key.toLowerCase();
+      // Enter restores; with text to copy it does nothing, so a stray Enter can't discard it.
+      const last = choices[choices.length - 1][0];
+      const k = e.key === 'Enter' ? (show ? '' : choices[0][0]) : e.key === 'Escape' ? last : e.key.toLowerCase();
       if (choices.some(([c]) => c === k)) { e.preventDefault(); finish(k); }
     });
   });
@@ -334,7 +358,7 @@ function offerDraft(
   } else {
     bar.focus();
   }
-  return { choice, cancel: () => finish('k') };
+  return { choice, cancel: () => finish(choices[choices.length - 1][0]) };
 }
 
 /**
