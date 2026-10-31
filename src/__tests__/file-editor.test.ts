@@ -133,6 +133,12 @@ describe('file editor: opening', () => {
     expect(app().querySelector('.file-ref')!.textContent).toBe('o/r @ feature/x');
     expect(fake.getEditorContent()).toBe('one\ntwo\n');
   });
+
+  it("shows metabrowse's version in the editor's bottom strip", async () => {
+    await open();
+    const badge = document.querySelector('#editor-container .editor-app-version');
+    expect(badge?.textContent).toMatch(/^metabrowse v\d+\.\d+\.\d+/);
+  });
 });
 
 describe('file editor: saving', () => {

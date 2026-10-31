@@ -748,6 +748,20 @@ body:has(.editor-screen) {
   padding-bottom: 2rem;
 }
 
+/* metabrowse's version, beside veditor's toggle in the strip below the text
+   (showAppVersion sets left from the toggle's width). Same metrics as the toggle. */
+.editor-screen .editor-app-version {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  padding: 3px 0;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 11px;
+  color: #6c7086;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
 .editor-loading {
   display: flex;
   align-items: center;

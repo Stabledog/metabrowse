@@ -7,7 +7,7 @@
  */
 
 import { ApiError, DEFAULT_HOST, branchExists, checkRepo, getFileContent, updateFileContent } from './github.ts';
-import { loadVeditor, showEditorStatus } from './editor.ts';
+import { loadVeditor, showAppVersion, showEditorStatus } from './editor.ts';
 import {
   parseBlobHash, resolveRef, detectLineEndings, toEditorText, toFileText, describeSaveError,
   veditorSupported, MIN_VEDITOR, UPSTREAM_CHANGED, UPSTREAM_DELETED,
@@ -301,12 +301,14 @@ export async function initFileEditor(target: HTMLElement): Promise<void> {
     closeEditor(target);
   };
 
-  ved.createEditor(document.getElementById('editor-container')!, editorText, { onSave, onQuit, onChange }, {
+  const container = document.getElementById('editor-container')!;
+  ved.createEditor(container, editorText, { onSave, onQuit, onChange }, {
     storagePrefix: 'metabrowse',
     autoSaveMs: 0, // onSave commits to someone's repo: never on a timer
     initialBufferId: path,
     initialBufferLabel: name,
   });
+  showAppVersion(container);
   state = 'editing';
   if (restoreText !== null) {
     ved.setEditorContent(restoreText, { markSaved: false });

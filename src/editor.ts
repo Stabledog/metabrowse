@@ -4,6 +4,7 @@
 import { getFileContent, updateFileContent } from './github.ts';
 import { setVeditorVersion } from './status-bar.ts';
 import { escapeHtml, errorMessage, basename, contentPathFor } from './utils.ts';
+import { APP_VERSION } from './version.ts';
 import type { VEditorCallbacks } from './veditor.d.ts';
 
 // veditor base URL — must be set via VITE_VEDITOR_BASE at build time.
@@ -44,6 +45,19 @@ export function showEditorStatus(msg: string, isError = false): void {
   if (!isError) {
     setTimeout(() => { if (el.textContent === msg) el.textContent = ''; }, 2000);
   }
+}
+
+/**
+ * Show metabrowse's version in the strip below the editor text, just right of
+ * veditor's VIM/CUA toggle (which carries veditor's version). Call after createEditor.
+ */
+export function showAppVersion(container: HTMLElement): void {
+  const badge = document.createElement('span');
+  badge.className = 'editor-app-version';
+  badge.textContent = `metabrowse v${APP_VERSION}`;
+  container.appendChild(badge);
+  const toggle = container.querySelector<HTMLElement>('.veditor-mode-toggle');
+  if (toggle) badge.style.left = `${toggle.offsetLeft + toggle.offsetWidth + 8}px`;
 }
 
 function dirLabel(dirPath: string): string {
@@ -177,10 +191,12 @@ export async function showEditor(
 
   const initialCallbacks = makeBufferCallbacks(dirPath, sha, content);
 
-  ved.createEditor(document.getElementById('editor-container')!, content, initialCallbacks, {
+  const container = document.getElementById('editor-container')!;
+  ved.createEditor(container, content, initialCallbacks, {
     storagePrefix: 'metabrowse',
     autoSaveMs: ved.getAutoSaveMs(),
     initialBufferId: dirPath,
     initialBufferLabel: dirLabel(dirPath),
   });
+  showAppVersion(container);
 }
